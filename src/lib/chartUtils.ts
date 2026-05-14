@@ -104,6 +104,8 @@ export function topSpendingDays(records: ExpenseRecord[], limit = 5): DateTotal[
  * the full total onto a single day. The original record is preserved unchanged
  * when not spread.
  */
+const MAX_SPREAD_DAYS = 366;
+
 export function expandForDailyAnalytics(records: ExpenseRecord[]): ExpenseRecord[] {
   const out: ExpenseRecord[] = [];
   for (const r of records) {
@@ -116,6 +118,15 @@ export function expandForDailyAnalytics(records: ExpenseRecord[]): ExpenseRecord
       const start = new Date(r.spreadStartDate);
       const end = new Date(r.spreadEndDate);
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+        out.push(r);
+        continue;
+      }
+      const spanDays = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+      if (spanDays > MAX_SPREAD_DAYS) {
+        console.warn(
+          `expandForDailyAnalytics: spread span of ${spanDays} days exceeds cap of ${MAX_SPREAD_DAYS}; falling back to a single-day record.`,
+          { recordId: r.id, start: r.spreadStartDate, end: r.spreadEndDate },
+        );
         out.push(r);
         continue;
       }

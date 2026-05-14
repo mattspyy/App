@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { BUDGET_PERIOD_TYPES, type Budget, type BudgetPeriodType } from "@/lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
+
+async function isGroupMember(
+  supabase: SupabaseClient,
+  userId: string,
+  groupId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("party_members")
+    .select("party_id")
+    .eq("user_id", userId)
+    .eq("party_id", groupId)
+    .maybeSingle();
+  if (error) return false;
+  return !!data;
+}
 
 type Row = {
   id: string;
@@ -73,6 +89,8 @@ export async function POST(req: NextRequest) {
     const periodType = body.periodType as BudgetPeriodType | undefined;
     const amount = typeof body.amount === "number" ? body.amount : Number(body.amount);
     const currency = body.currency?.trim();
+    const userId = body.userId?.trim();
+    if (!userId) return NextResponse.json({ error: "userId is required" }, { status: 400 });
     if (!groupId) return NextResponse.json({ error: "groupId is required" }, { status: 400 });
     if (!periodType || !BUDGET_PERIOD_TYPES.includes(periodType)) {
       return NextResponse.json({ error: "periodType must be monthly or trip_total" }, { status: 400 });
@@ -85,6 +103,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "tripId is required for trip_total budgets" }, { status: 400 });
     }
     const supabase = getSupabase();
+    if (!(await isGroupMember(supabase, userId, groupId))) {
+      return NextResponse.json({ error: "You are not a member of this group" }, { status: 403 });
+    }
     const { data, error } = await supabase
       .from("budgets")
       .upsert(
@@ -113,9 +134,21 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
+  const userId = req.nextUrl.searchParams.get("userId");
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+  if (!userId) return NextResponse.json({ error: "userId is required" }, { status: 400 });
   try {
     const supabase = getSupabase();
+    const { data: existing, error: loadError } = await supabase
+      .from("budgets")
+      .select("id, group_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (loadError) throw loadError;
+    if (!existing) return NextResponse.json({ error: "Budget not found" }, { status: 404 });
+    if (!(await isGroupMember(supabase, userId, (existing as { group_id: string }).group_id))) {
+      return NextResponse.json({ error: "You are not a member of this group" }, { status: 403 });
+    }
     const { error } = await supabase.from("budgets").delete().eq("id", id);
     if (error) throw error;
     return NextResponse.json({ ok: true });

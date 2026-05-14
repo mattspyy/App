@@ -148,6 +148,10 @@ export type ListExpensesOptions = {
   excludeTripExpenses?: boolean;
   /** Restrict to a specific Status value (e.g. "needs_review"). */
   status?: ExpenseStatus;
+  /** Inclusive lower bound on Date (YYYY-MM-DD). */
+  dateOnOrAfter?: string;
+  /** Inclusive upper bound on Date (YYYY-MM-DD). */
+  dateOnOrBefore?: string;
 };
 
 export async function listExpenses(opts: ListExpensesOptions): Promise<ExpenseRecord[]> {
@@ -163,6 +167,12 @@ export async function listExpenses(opts: ListExpensesOptions): Promise<ExpenseRe
   }
   if (opts.status) {
     filters.push({ property: "Status", select: { equals: opts.status } });
+  }
+  if (opts.dateOnOrAfter) {
+    filters.push({ property: "Date", date: { on_or_after: opts.dateOnOrAfter } });
+  }
+  if (opts.dateOnOrBefore) {
+    filters.push({ property: "Date", date: { on_or_before: opts.dateOnOrBefore } });
   }
   const res = await notion.databases.query({
     database_id: getDatabaseId(),

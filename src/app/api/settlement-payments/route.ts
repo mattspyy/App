@@ -1,7 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
+
+async function isGroupMember(
+  supabase: SupabaseClient,
+  userId: string,
+  groupId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("party_members")
+    .select("party_id")
+    .eq("user_id", userId)
+    .eq("party_id", groupId)
+    .maybeSingle();
+  if (error) return false;
+  return !!data;
+}
 
 type Row = {
   id: string;
@@ -70,6 +86,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as {
+      requesterUserId?: string;
       fromUserId?: string;
       toUserId?: string;
       amount?: number;
@@ -79,11 +96,15 @@ export async function POST(req: NextRequest) {
       date?: string;
       status?: "pending" | "paid";
     };
+    const requesterUserId = body.requesterUserId?.trim();
     const fromUserId = body.fromUserId?.trim();
     const toUserId = body.toUserId?.trim();
     const amount = typeof body.amount === "number" ? body.amount : Number(body.amount);
     const currency = body.currency?.trim();
     const groupId = body.groupId?.trim();
+    if (!requesterUserId) {
+      return NextResponse.json({ error: "requesterUserId is required" }, { status: 400 });
+    }
     if (!fromUserId || !toUserId) {
       return NextResponse.json({ error: "fromUserId and toUserId are required" }, { status: 400 });
     }
@@ -94,6 +115,9 @@ export async function POST(req: NextRequest) {
     if (!groupId) return NextResponse.json({ error: "groupId is required" }, { status: 400 });
     const status = body.status === "pending" ? "pending" : "paid";
     const supabase = getSupabase();
+    if (!(await isGroupMember(supabase, requesterUserId, groupId))) {
+      return NextResponse.json({ error: "You are not a member of this group" }, { status: 403 });
+    }
     const { data, error } = await supabase
       .from("settlement_payments")
       .insert({

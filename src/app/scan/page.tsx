@@ -186,6 +186,13 @@ function ScanPageInner() {
           onFile={(uri) => handleFile(uri, "screenshot")}
         />
         <Link
+          href={`/scan/smart-add${queryString}`}
+          className="block w-full p-6 border-2 border-zinc-300 rounded-xl text-center bg-white hover:bg-zinc-50 transition"
+        >
+          <div className="text-base font-medium">✨ Smart Add</div>
+          <div className="text-xs text-zinc-500 mt-1">Type one short line; AI fills the fields</div>
+        </Link>
+        <Link
           href={manualHref}
           className="block w-full p-6 border-2 border-zinc-300 rounded-xl text-center bg-white hover:bg-zinc-50 transition"
         >

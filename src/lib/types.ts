@@ -1,4 +1,4 @@
-export type SourceType = "receipt" | "screenshot" | "manual" | "voice";
+export type SourceType = "receipt" | "screenshot" | "manual" | "voice" | "smart_add";
 
 export const EXPENSE_CATEGORIES = [
   "Food",

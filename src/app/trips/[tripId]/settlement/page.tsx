@@ -68,7 +68,7 @@ export default function SettlementPage() {
   }, [session, router, tripId]);
 
   async function markAsPaid(settlement: Settlement, currency: string): Promise<void> {
-    if (!trip) return;
+    if (!trip || !session) return;
     const key = `${settlement.fromUserId}->${settlement.toUserId}`;
     setMarkingKey(key);
     try {
@@ -76,6 +76,7 @@ export default function SettlementPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          requesterUserId: session.userId,
           fromUserId: settlement.fromUserId,
           toUserId: settlement.toUserId,
           amount: settlement.amount,

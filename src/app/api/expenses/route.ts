@@ -55,14 +55,27 @@ function computeMissingFields(record: ExpenseRecord): string[] {
   if (!Number.isFinite(record.amount) || record.amount <= 0) missing.push("amount");
   if (!record.date) missing.push("date");
   if (!record.currency) missing.push("currency");
-  if (!record.category || record.category === "Other") missing.push("category");
+  if (!record.category) missing.push("category");
   return missing;
 }
 
+const DUPLICATE_SCAN_WINDOW_DAYS = 3;
+
+function shiftIso(date: string, days: number): string {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return date;
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 async function findPossibleDuplicates(record: ExpenseRecord): Promise<ExpenseRecord[]> {
-  if (!record.familyId) return [];
+  if (!record.familyId || !record.date) return [];
   try {
-    const existing = await listExpenses({ familyId: record.familyId });
+    const existing = await listExpenses({
+      familyId: record.familyId,
+      dateOnOrAfter: shiftIso(record.date, -DUPLICATE_SCAN_WINDOW_DAYS),
+      dateOnOrBefore: shiftIso(record.date, DUPLICATE_SCAN_WINDOW_DAYS),
+    });
     return existing.filter((r) =>
       r.id !== record.id
       && r.currency === record.currency

@@ -16,8 +16,11 @@ export function usePullToRefresh(onRefresh: () => Promise<void> | void): PullToR
   const [distance, setDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const onRefreshRef = useRef(onRefresh);
-  onRefreshRef.current = onRefresh;
   const refreshingRef = useRef(false);
+
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
 
   async function trigger(): Promise<void> {
     if (refreshingRef.current) return;
