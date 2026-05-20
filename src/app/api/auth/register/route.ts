@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { generateCode, hashPin, isValidPin, isValidUsername, normalizeUsername } from "@/lib/auth";
+import { ensurePersonalGroup } from "@/lib/personalGroup";
 
 export const runtime = "nodejs";
 
@@ -68,6 +69,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(describe("Failed to create account", insertRes.error), { status: 500 });
     }
     const data = insertRes.data;
+    // Provision a private "Personal" group for the new user. Failure here is
+    // logged but does NOT fail registration — the user can still create groups
+    // manually, and the confirm-page fallback simply won't find a Personal
+    // group to default to.
+    try {
+      await ensurePersonalGroup(supabase, data.id);
+    } catch (groupErr) {
+      console.error("[register] ensurePersonalGroup threw", groupErr);
+    }
     return NextResponse.json({
       session: {
         userId: data.id,

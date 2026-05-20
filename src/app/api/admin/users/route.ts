@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from("users")
-      .select("id, username, invite_code, base_currency, created_at")
+      .select("id, username, invite_code, base_currency, ai_calls_per_minute, created_at")
       .order("created_at", { ascending: false });
     if (error) {
       console.error("[admin/users] list error", error);

@@ -135,9 +135,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as Partial<ExpenseRecord>;
-    if (!body.userId || typeof body.amount !== "number" || (!body.familyId && !body.tripId)) {
+    if (!body.userId || typeof body.amount !== "number" || !body.familyId) {
       return NextResponse.json(
-        { error: "userId, amount, and one of (familyId | tripId) are required" },
+        { error: "userId, amount, and familyId are required (tripId is optional)" },
         { status: 400 },
       );
     }

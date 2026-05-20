@@ -9,6 +9,21 @@ AI-powered receipt + payment-screenshot expense tracking for families and groups
 - **Cloudinary** (optional) — image hosting
 - **Recharts** — dashboard charts
 
+## What's new — V2.6: Default Personal Group
+
+**Added:**
+- New users now automatically get a private "Personal" group on registration.
+- Expenses fall back to the Personal group when no group is explicitly selected and the user is not inside a group or trip context.
+
+**Changed:**
+- New users can start adding expenses immediately without manually creating a group first.
+- The expenses API now requires `familyId` on POST (previously allowed `tripId` alone). Any offline drafts saved before this update that contain only a `tripId` without a `groupId` will fail to sync.
+
+**Notes:**
+- Existing users are not backfilled in this task.
+- Personal is implemented on top of the existing `parties` table (no schema changes) — it's a regular `type='private'` row identified by `party_name='Personal'` + `created_by=<userId>`.
+- If `ensurePersonalGroup` fails on registration, the user can still proceed and create groups manually; the confirm-page fallback simply won't auto-select a Personal group.
+
 ## What's new — V2.5: Mobile Travel Experience
 
 All twelve items from the V2.5 scope are shipped:

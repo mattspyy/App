@@ -10,8 +10,13 @@ create table if not exists public.users (
   pin_hash text not null,
   invite_code text unique not null,
   base_currency text not null default 'HKD',
+  ai_calls_per_minute integer not null default 2,
   created_at timestamptz not null default now()
 );
+
+-- Idempotent column add for existing deployments where the table predates this column.
+alter table public.users
+  add column if not exists ai_calls_per_minute integer not null default 2;
 
 create table if not exists public.parties (
   id uuid primary key default gen_random_uuid(),
@@ -21,6 +26,10 @@ create table if not exists public.parties (
   created_by uuid not null references public.users(id) on delete cascade,
   created_at timestamptz not null default now()
 );
+
+create unique index if not exists parties_user_personal_unique
+  on public.parties (created_by)
+  where party_name = 'Personal' and type = 'private';
 
 create table if not exists public.party_members (
   party_id uuid not null references public.parties(id) on delete cascade,

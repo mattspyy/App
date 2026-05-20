@@ -1,4 +1,5 @@
 "use client";
+import { useSession } from "@/lib/session";
 import { Suspense, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -20,6 +21,7 @@ const SCAN_STEPS = [
 const STEP_INTERVAL_MS = 900;
 
 function ScanPageInner() {
+  const session = useSession();
   const router = useRouter();
   const search = useSearchParams();
   const tripId = search.get("tripId") || "";
@@ -72,10 +74,24 @@ function ScanPageInner() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(staged),
+        body: JSON.stringify({ ...staged, userId: session?.userId }),
       });
+      if (res.status === 429) {
+        const body = await res.json().catch(() => ({}));
+        console.error("/api/analyze 429", body);
+        setError(
+          "You've made several requests recently. Please wait a moment and try again.",
+        );
+        setBusy(false);
+        return;
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      if (!res.ok) {
+        console.error("/api/analyze error", data);
+        setError("Something went wrong. Please try again.");
+        setBusy(false);
+        return;
+      }
       sessionStorage.setItem(
         "fxt.pendingExpense",
         JSON.stringify({ analysis: data.analysis, imageUrl: data.imageUrl, sourceType: staged.sourceType }),
@@ -83,8 +99,9 @@ function ScanPageInner() {
       setFetchDone(true);
       setStepIndex(SCAN_STEPS.length - 1);
       setTimeout(() => router.push(`/scan/confirm${queryString}`), 400);
-    } catch {
-      setError("AI analysis failed. Please fill in manually.");
+    } catch (err) {
+      console.error("/api/analyze network error", err);
+      setError("Something went wrong. Please try again.");
       setBusy(false);
     }
   }

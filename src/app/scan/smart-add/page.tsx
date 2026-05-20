@@ -55,8 +55,22 @@ function SmartAddInner() {
           defaultCurrency: session.baseCurrency,
         }),
       });
+      if (res.status === 429) {
+        const body = await res.json().catch(() => ({}));
+        console.error("/api/smart-add 429", body);
+        setError(
+          "You've made several requests recently. Please wait a moment and try again.",
+        );
+        setBusy(false);
+        return;
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Smart Add failed");
+      if (!res.ok) {
+        console.error("/api/smart-add error", data);
+        setError("Something went wrong. Please try again.");
+        setBusy(false);
+        return;
+      }
       sessionStorage.setItem(
         "fxt.pendingExpense",
         JSON.stringify({
@@ -67,7 +81,8 @@ function SmartAddInner() {
       );
       router.push(`/scan/confirm${confirmQuery}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      console.error("/api/smart-add network error", err);
+      setError("Something went wrong. Please try again.");
       setBusy(false);
     }
   }

@@ -28,6 +28,13 @@ Return ONLY a single JSON object with these keys:
 }
 
 Rules:
+- merchant: the main subject/title of the expense — typically the first noun or noun phrase. This MUST be populated whenever any subject can be identified. Food and meal nouns count as merchants (e.g. "Coffee", "Ramen", "Lunch", "Dinner", "Pizza", "Hotel", "Taxi"). Use the natural English title-case form. Examples:
+  - "Coffee 42 cash" → merchant: "Coffee"
+  - "Ramen with my mom 12000 yen" → merchant: "Ramen"
+  - "Dinner 600 paid by Alex split with Ben" → merchant: "Dinner"
+  - "Starbucks 42" → merchant: "Starbucks"
+  - "Tokyo hotel 12000 yen" → merchant: "Tokyo hotel"
+  Only return null if the input is purely numeric or contains no subject word at all.
 - currency must be a 3-letter ISO 4217 code if possible (USD, EUR, GBP, JPY, HKD, CNY, TWD, KRW, etc.). Translate symbols if unambiguous.
 - date must be ISO 8601 (YYYY-MM-DD). If unsure, return null.
 - paymentMethod examples: Cash, Card, Apple Pay, Google Pay, Alipay, WeChat Pay, Bank Transfer, Other.
@@ -164,6 +171,13 @@ Return ONLY a single JSON object with these keys:
 }
 
 Rules:
+- merchant: the main subject/title of the expense — typically the first noun or noun phrase. This MUST be populated whenever any subject can be identified. Food and meal nouns count as merchants (e.g. "Coffee", "Ramen", "Lunch", "Dinner", "Pizza", "Hotel", "Taxi"). Use the natural English title-case form. Examples:
+  - "Coffee 42 cash" → merchant: "Coffee"
+  - "Ramen with my mom 12000 yen" → merchant: "Ramen"
+  - "Dinner 600 paid by Alex split with Ben" → merchant: "Dinner"
+  - "Starbucks 42" → merchant: "Starbucks"
+  - "Tokyo hotel 12000 yen" → merchant: "Tokyo hotel"
+  Only return null if the input is purely numeric or contains no subject word at all.
 - currency must be a 3-letter ISO 4217 code (USD, EUR, GBP, JPY, HKD, CNY, etc.) when identifiable; otherwise null.
 - date must be ISO 8601 (YYYY-MM-DD). Resolve relative words ("today", "yesterday", "last night", "this morning", "tonight") against TODAY supplied below. "last night" and "yesterday" → yesterday. Return null only when no time reference can be inferred.
 - paymentMethod examples: Cash, Credit Card, Debit Card, Bank Transfer, Apple Pay, Google Pay, Octopus, PayMe, AlipayHK, WeChat Pay, Other.

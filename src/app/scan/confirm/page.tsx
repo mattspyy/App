@@ -238,6 +238,7 @@ function ConfirmFormBody({
   const [knownUsers, setKnownUsers] = useState<Array<{ userId: string; userName: string }>>([
     { userId: session.userId, userName: session.username },
   ]);
+  const [membersLoaded, setMembersLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicates, setDuplicates] = useState<Array<{ id: string; merchant?: string; amount: number; currency: string; date: string }>>([]);
@@ -291,6 +292,7 @@ function ConfirmFormBody({
     const groupId = form?.groupId;
     if (!groupId) return;
     let cancelled = false;
+    setMembersLoaded(false);
     fetch(`/api/parties/${encodeURIComponent(groupId)}/members?userId=${encodeURIComponent(session.userId)}`)
       .then((r) => (r.ok ? r.json() : { members: [] }))
       .then((b) => {
@@ -301,7 +303,10 @@ function ConfirmFormBody({
         for (const m of members) map.set(m.userId, m.username);
         setKnownUsers(Array.from(map, ([userId, userName]) => ({ userId, userName })));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setMembersLoaded(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -316,6 +321,29 @@ function ConfirmFormBody({
       setForm((f) => (f ? { ...f, groupId: t.familyId } : f));
     }
   }, [form, trips]);
+
+  // Personal-group fallback: if the user landed here with no group context
+  // (no URL partyId, no tripId-resolved parent), default to their Personal
+  // group. Resolution criteria match the server-side helper: a private party
+  // they own whose name is "Personal" (earliest if duplicates ever exist).
+  // If no Personal group is found, groupId stays empty and the submit guard
+  // will require manual selection.
+  useEffect(() => {
+    if (!form) return;
+    if (form.groupId || form.tripId) return;
+    if (parties.length === 0) return;
+    const personal = parties
+      .filter(
+        (p) =>
+          p.type === "private" &&
+          p.createdBy === session.userId &&
+          p.partyName === "Personal",
+      )
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+    if (personal) {
+      setForm((f) => (f ? { ...f, groupId: personal.partyId } : f));
+    }
+  }, [form, parties, session.userId]);
 
   // Auto-apply category rule when merchant matches a saved rule (until user manually overrides).
   useEffect(() => {
@@ -374,11 +402,21 @@ function ConfirmFormBody({
       hintsAppliedRef.current = true;
       return;
     }
+    const hasAnyHint =
+      !!pendingHints.payerName ||
+      !!pendingHints.splitType ||
+      (pendingHints.participantNames?.length ?? 0) > 0;
+    if (!hasAnyHint) {
+      hintsAppliedRef.current = true;
+      setPendingHints(null);
+      return;
+    }
     if (!form.groupId) return; // wait for group resolution
-    if (knownUsers.length === 0) return; // wait for members load
+    if (!membersLoaded) return; // wait for the members fetch to finish
 
     hintsAppliedRef.current = true;
     const unmatched: string[] = [];
+    const guidance: string[] = [];
 
     let nextPayerId = form.payerId;
     let nextPayerName = form.payerName;
@@ -408,7 +446,7 @@ function ConfirmFormBody({
     }
 
     // Resolve splitType. custom_amount is downgraded to equal_split because the
-    // AI doesn't surface per-person amounts; flag the ambiguity in notes.
+    // AI doesn't surface per-person amounts; surface the ambiguity as guidance.
     let nextSplitType: SplitType = form.splitType;
     if (pendingHints.splitType === "no_split") {
       nextSplitType = "no_split";
@@ -416,7 +454,7 @@ function ConfirmFormBody({
       nextSplitType = "equal_split";
     } else if (pendingHints.splitType === "custom_amount") {
       nextSplitType = "equal_split";
-      unmatched.push("Custom split amounts mentioned — review participant shares");
+      guidance.push("Custom split amounts mentioned — review participant shares");
     }
 
     // For equal_split, include the payer in participants unless explicitly excluded.
@@ -432,6 +470,7 @@ function ConfirmFormBody({
     const noteParts: string[] = [];
     if (form.notes.trim()) noteParts.push(form.notes.trim());
     if (unmatched.length > 0) noteParts.push(unmatched.join(" · "));
+    if (guidance.length > 0) noteParts.push(guidance.join(" · "));
     const nextNotes = noteParts.join(" — ");
 
     setForm((f) =>
@@ -448,7 +487,7 @@ function ConfirmFormBody({
         : f,
     );
     setPendingHints(null);
-  }, [form, pendingHints, knownUsers, session]);
+  }, [form, pendingHints, knownUsers, membersLoaded, session]);
 
   // Default split based on group size: personal (1 member) → no_split, else equal_split.
   useEffect(() => {

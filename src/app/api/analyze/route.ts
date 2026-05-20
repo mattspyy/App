@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeImage } from "@/lib/gemini";
 import { isCloudinaryConfigured, uploadImageDataUri } from "@/lib/cloudinary";
-import { clientKey, rateLimit } from "@/lib/rateLimit";
+import { enforceAiRateLimit } from "@/lib/aiRateLimit";
 import type { SourceType } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -10,21 +10,30 @@ export const maxDuration = 60;
 const MAX_BYTES = 8 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
-  const limit = rateLimit(clientKey(req));
-  if (!limit.ok) {
-    const retryAfter = Math.max(1, Math.ceil((limit.resetAt - Date.now()) / 1000));
-    return NextResponse.json(
-      { error: "Too many requests. Please wait a moment and try again." },
-      { status: 429, headers: { "Retry-After": String(retryAfter) } },
-    );
-  }
   try {
-    const body = (await req.json()) as { dataUri?: string; sourceType?: SourceType };
+    const body = (await req.json()) as {
+      dataUri?: string;
+      sourceType?: SourceType;
+      userId?: string;
+    };
     const dataUri = body.dataUri;
     const sourceType: SourceType = body.sourceType ?? "receipt";
+    const userId = body.userId?.trim();
 
+    if (!userId) {
+      return NextResponse.json({ error: "userId is required" }, { status: 400 });
+    }
     if (!dataUri || !dataUri.startsWith("data:")) {
       return NextResponse.json({ error: "dataUri (data URL) is required" }, { status: 400 });
+    }
+
+    const limit = await enforceAiRateLimit(userId);
+    if (!limit.ok) {
+      const retryAfter = Math.max(1, Math.ceil((limit.resetAt - Date.now()) / 1000));
+      return NextResponse.json(
+        { error: `AI call limit reached (${limit.limit}/min). Try again in ${retryAfter}s.` },
+        { status: 429, headers: { "Retry-After": String(retryAfter) } },
+      );
     }
 
     const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);

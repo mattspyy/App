@@ -7,8 +7,19 @@ type AdminUser = {
   username: string;
   invite_code: string;
   base_currency: string;
+  ai_calls_per_minute: number | null;
   created_at: string;
 };
+
+const RATE_LIMIT_PRESETS = [2, 5, 10, 0] as const;
+const ADMIN_USERNAMES = (process.env.NEXT_PUBLIC_ADMIN_USERNAMES || "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+function isAdminUsername(name: string): boolean {
+  return ADMIN_USERNAMES.includes(name.trim().toLowerCase());
+}
 
 const PASS_KEY = "fxt.adminPassword";
 
@@ -21,6 +32,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [savingLimit, setSavingLimit] = useState<string | null>(null);
 
   useEffect(() => {
     if (password && !authenticated) void load(password);
@@ -73,6 +85,30 @@ export default function AdminPage() {
     }
   }
 
+  async function handleUpdateLimit(user: AdminUser, value: number) {
+    setSavingLimit(user.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/rate-limit`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", [ADMIN_HEADER]: password },
+        body: JSON.stringify({ aiCallsPerMinute: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update rate limit");
+      const updated = data.user as { id: string; ai_calls_per_minute: number };
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === updated.id ? { ...u, ai_calls_per_minute: updated.ai_calls_per_minute } : u,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setSavingLimit(null);
+    }
+  }
+
   function handleLogout() {
     sessionStorage.removeItem(PASS_KEY);
     setPassword("");
@@ -114,6 +150,78 @@ export default function AdminPage() {
       </div>
 
       {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded">{error}</div>}
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold">User Rate Limits</h2>
+        <p className="text-xs text-zinc-500">
+          AI calls per minute per user. 0 = unlimited. Admins listed in
+          ADMIN_USERNAMES are always unlimited.
+        </p>
+        <div className="bg-white border border-zinc-200 rounded-xl overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-zinc-50 text-zinc-600">
+              <tr>
+                <th className="text-left px-3 py-2">Username</th>
+                <th className="text-left px-3 py-2">AI calls / min</th>
+                <th className="text-left px-3 py-2">Quick presets</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => {
+                const adminBypass = isAdminUsername(u.username);
+                const current =
+                  u.ai_calls_per_minute == null ? 0 : u.ai_calls_per_minute;
+                return (
+                  <tr key={u.id} className="border-t border-zinc-100">
+                    <td className="px-3 py-2 font-medium">{u.username}</td>
+                    <td className="px-3 py-2">
+                      {adminBypass ? (
+                        <span className="text-emerald-700 text-xs font-medium">
+                          Unlimited (ADMIN_USERNAMES)
+                        </span>
+                      ) : (
+                        <span className="text-xs">
+                          {current === 0 ? "Unlimited" : `${current}/min`}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {RATE_LIMIT_PRESETS.map((preset) => {
+                          const active = current === preset;
+                          const disabled =
+                            adminBypass || savingLimit === u.id || active;
+                          return (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => handleUpdateLimit(u, preset)}
+                              disabled={disabled}
+                              className={`px-2 py-1 rounded-md border text-xs ${
+                                active
+                                  ? "border-zinc-900 bg-zinc-900 text-white"
+                                  : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
+                              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            >
+                              {preset === 0 ? "Unlimited" : `${preset}/min`}
+                            </button>
+                          );
+                        })}
+                        {savingLimit === u.id && (
+                          <span className="text-xs text-zinc-500 self-center">Saving…</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {users.length === 0 && (
+                <tr><td colSpan={3} className="text-center text-zinc-500 py-6">No users.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <div className="bg-white border border-zinc-200 rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
