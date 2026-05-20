@@ -61,6 +61,7 @@ function SmartAddInner() {
         "fxt.pendingExpense",
         JSON.stringify({
           analysis: data.analysis,
+          hints: data.hints || undefined,
           sourceType: "smart_add",
         }),
       );

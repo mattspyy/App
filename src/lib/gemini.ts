@@ -175,6 +175,12 @@ Rules:
 - confidence is a single number between 0 and 1 reflecting overall extraction reliability.
 - Output strict JSON only, no markdown fences, no commentary.`;
 
+export type SmartAddHints = {
+  payerName?: string | null;
+  splitType?: "no_split" | "equal_split" | "custom_amount" | null;
+  participantNames?: string[];
+};
+
 export type AnalyzeTextDefaults = {
   today: string; // ISO YYYY-MM-DD
   defaultCurrency?: string;
@@ -183,7 +189,7 @@ export type AnalyzeTextDefaults = {
 export async function analyzeText(
   rawText: string,
   defaults: AnalyzeTextDefaults,
-): Promise<AIAnalysisResult> {
+): Promise<{ analysis: AIAnalysisResult; hints: SmartAddHints }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not set");
@@ -209,17 +215,20 @@ export async function analyzeText(
 
   if (!parsed) {
     return {
-      merchant: null,
-      amount: null,
-      currency: null,
-      date: null,
-      country: null,
-      category: "Other",
-      paymentMethod: null,
-      sourceType: "smart_add",
-      confidence: 0,
-      needsManualInput: true,
-      notes: "Unable to parse AI response",
+      analysis: {
+        merchant: null,
+        amount: null,
+        currency: null,
+        date: null,
+        country: null,
+        category: "Other",
+        paymentMethod: null,
+        sourceType: "smart_add",
+        confidence: 0,
+        needsManualInput: true,
+        notes: "Unable to parse AI response",
+      },
+      hints: {},
     };
   }
 
@@ -245,25 +254,32 @@ export async function analyzeText(
   const paymentMethod = typeof parsed.paymentMethod === "string" ? parsed.paymentMethod : null;
   const country = typeof parsed.country === "string" ? parsed.country : null;
 
-  // Attach any split / payer info to notes so the user sees it on confirm without
-  // changing the confirm page's data model.
+  // Notes carries only the AI's own notes; payer/split info travels in `hints`
+  // so the confirm page can resolve names to IDs after members load.
   const baseNotes = typeof parsed.notes === "string" ? parsed.notes.trim() : "";
-  const hintParts: string[] = [];
-  if (typeof parsed.payerName === "string" && parsed.payerName.trim()) {
-    hintParts.push(`Paid by ${parsed.payerName.trim()}`);
-  }
-  if (Array.isArray(parsed.splitParticipants) && parsed.splitParticipants.length > 0) {
-    const names = parsed.splitParticipants
-      .filter((n): n is string => typeof n === "string" && n.trim().length > 0)
-      .map((n) => n.trim());
-    if (names.length > 0) hintParts.push(`Split with ${names.join(", ")}`);
-  }
-  if (typeof parsed.splitType === "string" && parsed.splitType !== "no_split") {
-    hintParts.push(`Suggested split: ${parsed.splitType}`);
-  }
-  const combinedNotes = [baseNotes, hintParts.join(" · ")].filter(Boolean).join(" — ");
 
-  return {
+  const payerName =
+    typeof parsed.payerName === "string" && parsed.payerName.trim()
+      ? parsed.payerName.trim()
+      : null;
+  const splitTypeRaw =
+    typeof parsed.splitType === "string" ? parsed.splitType : null;
+  const splitType: SmartAddHints["splitType"] =
+    splitTypeRaw === "no_split" || splitTypeRaw === "equal_split" || splitTypeRaw === "custom_amount"
+      ? splitTypeRaw
+      : null;
+  const participantNames = Array.isArray(parsed.splitParticipants)
+    ? parsed.splitParticipants
+        .filter((n): n is string => typeof n === "string" && n.trim().length > 0)
+        .map((n) => n.trim())
+    : [];
+
+  const hints: SmartAddHints = {};
+  if (payerName) hints.payerName = payerName;
+  if (splitType) hints.splitType = splitType;
+  if (participantNames.length > 0) hints.participantNames = participantNames;
+
+  const analysis: AIAnalysisResult = {
     merchant,
     amount,
     currency,
@@ -274,6 +290,7 @@ export async function analyzeText(
     sourceType: "smart_add",
     confidence,
     needsManualInput: confidence < CONFIDENCE_THRESHOLD,
-    notes: combinedNotes || undefined,
+    notes: baseNotes || undefined,
   };
+  return { analysis, hints };
 }

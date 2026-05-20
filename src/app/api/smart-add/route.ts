@@ -43,11 +43,11 @@ export async function POST(req: NextRequest) {
     if (text.length > MAX_TEXT_LENGTH) {
       return NextResponse.json({ error: `text must be ${MAX_TEXT_LENGTH} characters or fewer` }, { status: 400 });
     }
-    const analysis = await analyzeText(text, {
+    const { analysis, hints } = await analyzeText(text, {
       today: todayIso(),
       defaultCurrency: body.defaultCurrency?.trim() || undefined,
     });
-    return NextResponse.json({ analysis, sourceType: "smart_add" });
+    return NextResponse.json({ analysis, hints, sourceType: "smart_add" });
   } catch (err) {
     console.error("/api/smart-add error", err);
     const message = err instanceof Error ? err.message : "Unknown error";

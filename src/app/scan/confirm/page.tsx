@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session";
 import { CONFIDENCE_THRESHOLD } from "@/lib/categories";
@@ -110,11 +110,7 @@ function buildInitialForm(
   const raw = sessionStorage.getItem("fxt.pendingExpense");
   if (!raw) return null;
   try {
-    const pending = JSON.parse(raw) as {
-      analysis: AIAnalysisResult;
-      imageUrl?: string;
-      sourceType: SourceType;
-    };
+    const pending = JSON.parse(raw) as PendingExpense;
     const a = pending.analysis;
     return {
       ...common,
@@ -141,6 +137,55 @@ function buildInitialForm(
   } catch {
     return null;
   }
+}
+
+type SmartAddHints = {
+  payerName?: string | null;
+  splitType?: SplitType | null;
+  participantNames?: string[];
+};
+
+type PendingExpense = {
+  analysis: AIAnalysisResult;
+  imageUrl?: string;
+  sourceType: SourceType;
+  hints?: SmartAddHints;
+};
+
+function readPendingHints(): SmartAddHints | null {
+  if (typeof window === "undefined") return null;
+  const raw = sessionStorage.getItem("fxt.pendingExpense");
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PendingExpense;
+    return parsed.hints || null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeName(s: string): string {
+  return s.trim().toLowerCase().replace(/[^a-z0-9\u00C0-\uFFFF\s]/g, "");
+}
+
+function matchKnownUser(
+  name: string,
+  users: Array<{ userId: string; userName: string }>,
+  session: Session,
+): { userId: string; userName: string } | null {
+  const n = normalizeName(name);
+  if (!n) return null;
+  if (n === "i" || n === "me" || n === "myself") {
+    return { userId: session.userId, userName: session.username };
+  }
+  const exact = users.find((u) => normalizeName(u.userName) === n);
+  if (exact) return exact;
+  const partials = users.filter((u) => {
+    const un = normalizeName(u.userName);
+    return un && (un.includes(n) || n.includes(un));
+  });
+  if (partials.length === 1) return partials[0];
+  return null;
 }
 
 function ConfirmInner() {
@@ -316,7 +361,96 @@ function ConfirmFormBody({
     }
   }
 
-    // Default split based on group size: personal (1 member) → no_split, else equal_split.
+    // Smart Add: resolve raw payer/participant names into structured form fields
+  // once group membership has loaded. Runs at most once per pending expense.
+  const [pendingHints, setPendingHints] = useState<SmartAddHints | null>(() =>
+    isManual ? null : readPendingHints(),
+  );
+  const hintsAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (!form || hintsAppliedRef.current) return;
+    if (!pendingHints) {
+      hintsAppliedRef.current = true;
+      return;
+    }
+    if (!form.groupId) return; // wait for group resolution
+    if (knownUsers.length === 0) return; // wait for members load
+
+    hintsAppliedRef.current = true;
+    const unmatched: string[] = [];
+
+    let nextPayerId = form.payerId;
+    let nextPayerName = form.payerName;
+    if (pendingHints.payerName) {
+      const matched = matchKnownUser(pendingHints.payerName, knownUsers, session);
+      if (matched) {
+        nextPayerId = matched.userId;
+        nextPayerName = matched.userName;
+      } else {
+        nextPayerName = pendingHints.payerName;
+        unmatched.push(`Payer "${pendingHints.payerName}" (not in group)`);
+      }
+    }
+
+    const matchedParticipantIds: string[] = [];
+    if (pendingHints.participantNames && pendingHints.participantNames.length > 0) {
+      for (const raw of pendingHints.participantNames) {
+        const matched = matchKnownUser(raw, knownUsers, session);
+        if (matched) {
+          if (!matchedParticipantIds.includes(matched.userId)) {
+            matchedParticipantIds.push(matched.userId);
+          }
+        } else {
+          unmatched.push(`Participant "${raw}" (not in group)`);
+        }
+      }
+    }
+
+    // Resolve splitType. custom_amount is downgraded to equal_split because the
+    // AI doesn't surface per-person amounts; flag the ambiguity in notes.
+    let nextSplitType: SplitType = form.splitType;
+    if (pendingHints.splitType === "no_split") {
+      nextSplitType = "no_split";
+    } else if (pendingHints.splitType === "equal_split") {
+      nextSplitType = "equal_split";
+    } else if (pendingHints.splitType === "custom_amount") {
+      nextSplitType = "equal_split";
+      unmatched.push("Custom split amounts mentioned — review participant shares");
+    }
+
+    // For equal_split, include the payer in participants unless explicitly excluded.
+    let nextParticipantIds = form.participantIds;
+    if (nextSplitType === "equal_split") {
+      const combined = [...matchedParticipantIds];
+      if (!combined.includes(nextPayerId)) combined.unshift(nextPayerId);
+      nextParticipantIds = combined.length > 0 ? combined : [nextPayerId];
+    } else if (nextSplitType === "no_split") {
+      nextParticipantIds = [];
+    }
+
+    const noteParts: string[] = [];
+    if (form.notes.trim()) noteParts.push(form.notes.trim());
+    if (unmatched.length > 0) noteParts.push(unmatched.join(" · "));
+    const nextNotes = noteParts.join(" — ");
+
+    setForm((f) =>
+      f
+        ? {
+            ...f,
+            payerId: nextPayerId,
+            payerName: nextPayerName,
+            splitType: nextSplitType,
+            splitTouched: true,
+            participantIds: nextParticipantIds,
+            notes: nextNotes,
+          }
+        : f,
+    );
+    setPendingHints(null);
+  }, [form, pendingHints, knownUsers, session]);
+
+  // Default split based on group size: personal (1 member) → no_split, else equal_split.
   useEffect(() => {
     if (!form || form.splitTouched) return;
     const isPersonal = knownUsers.length <= 1;
