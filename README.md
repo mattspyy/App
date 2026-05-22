@@ -221,3 +221,4 @@ src/
 ## Changelog / Development Log
 
 - **2026-05-22** — UI planning review of current codebase completed (no code changes). Captured pages, routes, data dependencies, states, and design checklist as input for the upcoming full UI redesign phase.
+- **2026-05-22 — UI redesign · Phase 1** *(branch: `ui-redesign`)*. Added FXT design tokens (warm cream canvas, terracotta accent, sage/amber, OKLCH palette) and shared UI primitives in `src/components/ui/` (`Card`, `Button`, `Badge`, `ProgressBar`, `Alert`, `TextField`, `SelectChip`, `StatCard`, `PageHeader`, `SectionHeader`, `BottomActionBar`, `AppShell`). Restyled `Nav` (translucent top bar + accent "Add" pill on desktop, bottom-nav with center accent FAB on mobile). Redesigned `/login`, `/register`, and `/parties` (Groups list with elevated Personal-group section + join-by-code card). No route, API, data-model, or feature changes. Legacy `.input` class kept so unmigrated pages still render.

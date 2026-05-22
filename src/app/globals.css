@@ -1,23 +1,114 @@
 @import "tailwindcss";
 
-html, body {
-  background: #fafafa;
-  color: #18181b;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+/* Fonts are loaded via <link> in app/layout.tsx <head>. Tailwind's preamble
+ * expands before any @import we'd put here, which triggers a CSS ordering
+ * warning at build time — using a <link> tag avoids that. */
+
+/* ------------------------------------------------------------------ */
+/* FXT design tokens — warm cream canvas, terracotta accent, sage/amber */
+/* ------------------------------------------------------------------ */
+
+@theme inline {
+  --color-canvas: oklch(98.2% 0.006 80);
+  --color-bg-soft: oklch(96.5% 0.008 80);
+  --color-surface: oklch(99.4% 0.003 85);
+
+  --color-line: oklch(91% 0.007 75);
+  --color-line-soft: oklch(94% 0.006 75);
+
+  --color-ink: oklch(24% 0.012 60);
+  --color-ink-2: oklch(42% 0.012 60);
+  --color-ink-3: oklch(58% 0.012 60);
+
+  --color-accent: oklch(64% 0.13 38);
+  --color-accent-soft: oklch(94% 0.03 40);
+  --color-accent-ink: oklch(38% 0.12 38);
+
+  --color-sage: oklch(62% 0.07 155);
+  --color-sage-soft: oklch(94% 0.025 155);
+  --color-sage-ink: oklch(36% 0.06 155);
+
+  --color-amber: oklch(70% 0.13 70);
+  --color-amber-soft: oklch(94% 0.04 80);
+  --color-amber-ink: oklch(38% 0.09 70);
+
+  --font-display: "Instrument Serif", "Source Serif 4", Georgia, serif;
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-sans: "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 16px;
 }
 
+/* Base */
+html, body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--color-accent) 30%, transparent);
+  color: var(--color-ink);
+}
+
+/* Typography helpers — used by primitives and pages */
+.fxt-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+.fxt-serif {
+  font-family: var(--font-serif);
+  color: var(--color-ink);
+}
+.fxt-mono {
+  font-family: var(--font-mono);
+}
+.fxt-eyebrow {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+  color: var(--color-ink-3);
+}
+
+/* Focus ring used by all interactive primitives */
+.fxt-focus {
+  outline: none;
+}
+.fxt-focus:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-canvas), 0 0 0 3.5px var(--color-accent);
+}
+
+/* Legacy .input — kept so unmigrated pages still render correctly */
 .input {
   display: block;
   width: 100%;
-  border-radius: 0.5rem;
-  border: 1px solid rgb(212 212 216);
-  background: #fff;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9rem;
+  line-height: 1.3rem;
+  font-family: var(--font-sans);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
+.input::placeholder { color: var(--color-ink-3); }
 .input:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgb(161 161 170);
-  border-color: rgb(161 161 170);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-accent) 20%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
