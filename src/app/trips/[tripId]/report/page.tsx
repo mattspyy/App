@@ -17,6 +17,14 @@ import type { ExpenseRecord, Trip } from "@/lib/types";
 import SpendingLineChart from "@/components/SpendingLineChart";
 import PaymentMethodChart from "@/components/PaymentMethodChart";
 import RankingLists from "@/components/RankingLists";
+import {
+  Card,
+  Alert,
+  Button,
+  ButtonLink,
+  SectionHeader,
+  StatCard,
+} from "@/components/ui";
 
 function topMerchant(records: ExpenseRecord[]): { merchant: string; total: number } | null {
   const map = new Map<string, number>();
@@ -35,6 +43,10 @@ function inRange(date: string, start: string, end: string): boolean {
   if (start && date < start) return false;
   if (end && date > end) return false;
   return true;
+}
+
+function formatAmount(value: number): string {
+  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function ReportPage() {
@@ -95,13 +107,19 @@ export default function ReportPage() {
       averageDaily: total / days,
       topCategory: byCategory[0] ?? null,
       topMerchant: topMerchant(records),
-      topDay: byDate.reduce((best, cur) => (!best || cur.total > best.total ? cur : best), null as null | { date: string; total: number }),
+      topDay: byDate.reduce(
+        (best, cur) => (!best || cur.total > best.total ? cur : best),
+        null as null | { date: string; total: number },
+      ),
     };
   }, [records]);
 
   function handleExport() {
     if (!trip) return;
-    const headers = ["Date", "Merchant", "Category", "Amount", "Currency", "Base Amount", "Base Currency", "Payer", "Split Type", "Notes"];
+    const headers = [
+      "Date", "Merchant", "Category", "Amount", "Currency",
+      "Base Amount", "Base Currency", "Payer", "Split Type", "Notes",
+    ];
     const rows = records.map((r) => [
       r.date,
       r.merchant ?? "",
@@ -118,111 +136,167 @@ export default function ReportPage() {
     downloadCsv(`${safeName}_${startDate || "all"}_${endDate || "all"}.csv`, toCsv(headers, rows));
   }
 
-  if (!session || loading) return <div className="text-sm text-zinc-500">Loading…</div>;
-  if (error) return <div className="bg-red-50 text-red-700 text-sm p-3 rounded">{error}</div>;
-  if (!trip) return <div className="text-sm text-zinc-500">Trip not found.</div>;
+  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
+  if (error) return <Alert tone="accent" title="Couldn't load the report.">{error}</Alert>;
+  if (!trip) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Trip not found.</div>;
 
   const baseCurrency = trip.baseCurrency || session.baseCurrency || "HKD";
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <div className="text-xs text-zinc-500">
-          <Link href="/trips" className="underline">Trips</Link> /{" "}
-          <Link href={`/trips/${trip.tripId}`} className="underline">{trip.tripName}</Link> /
-        </div>
-        <h1 className="text-2xl font-semibold">Report</h1>
+    <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 960, margin: "0 auto" }}>
+      <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+        <Link href="/trips" style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>Trips</Link>
+        <span style={{ margin: "0 6px" }}>/</span>
+        <Link href={`/trips/${trip.tripId}`} style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>
+          {trip.tripName}
+        </Link>
       </div>
 
-      <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
-        <div className="flex gap-3 flex-wrap items-end">
-          <label className="block">
-            <div className="text-xs text-zinc-600 mb-1">From</div>
-            <input type="date" className="input" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </label>
-          <label className="block">
-            <div className="text-xs text-zinc-600 mb-1">To</div>
-            <input type="date" className="input" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </label>
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={records.length === 0}
-            className="bg-zinc-900 text-white px-3 py-2 rounded-md text-sm disabled:opacity-50"
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div className="fxt-eyebrow">TRIP REPORT</div>
+          <h1
+            className="fxt-display"
+            style={{ fontSize: "clamp(28px, 4.6vw, 40px)", margin: "8px 0 0", lineHeight: 1.1, letterSpacing: "-0.015em" }}
           >
-            Export CSV
-          </button>
+            {trip.tripName}
+          </h1>
         </div>
-      </div>
+        <ButtonLink href={`/trips/${trip.tripId}/settlement`} variant="ghost" size="md">
+          Settlement →
+        </ButtonLink>
+      </header>
 
-      <section className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <SummaryCard label="Total spending" value={`${summary.total.toFixed(2)} ${baseCurrency}`} />
-        <SummaryCard label="Records" value={String(records.length)} />
-        <SummaryCard label="Avg / day" value={`${summary.averageDaily.toFixed(2)} ${baseCurrency}`} />
-        <SummaryCard label="Top category" value={summary.topCategory ? `${summary.topCategory.category} (${summary.topCategory.total.toFixed(2)})` : "—"} />
-        <SummaryCard label="Top merchant" value={summary.topMerchant ? `${summary.topMerchant.merchant} (${summary.topMerchant.total.toFixed(2)})` : "—"} />
-        <SummaryCard label="Highest day" value={summary.topDay ? `${summary.topDay.date} (${summary.topDay.total.toFixed(2)})` : "—"} />
+      {/* RANGE + EXPORT */}
+      <Card padding={16} tone="soft">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+          <DateField label="From" value={startDate} onChange={setStartDate} />
+          <DateField label="To" value={endDate} onChange={setEndDate} />
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={handleExport}
+              disabled={records.length === 0}
+            >
+              Export CSV
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* SUMMARY */}
+      <section>
+        <SectionHeader title="Summary" meta={`${records.length} EXPENSE${records.length === 1 ? "" : "S"} · ${baseCurrency}`} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+          <StatCard label="Total spending" value={`${formatAmount(summary.total)} ${baseCurrency}`} />
+          <StatCard label="Avg / day" value={`${formatAmount(summary.averageDaily)} ${baseCurrency}`} />
+          <StatCard
+            label="Top category"
+            value={summary.topCategory ? summary.topCategory.category : "—"}
+            hint={summary.topCategory ? `${formatAmount(summary.topCategory.total)} ${baseCurrency}` : undefined}
+          />
+          <StatCard
+            label="Top merchant"
+            value={summary.topMerchant ? summary.topMerchant.merchant : "—"}
+            hint={summary.topMerchant ? `${formatAmount(summary.topMerchant.total)} ${baseCurrency}` : undefined}
+          />
+          <StatCard
+            label="Highest day"
+            value={summary.topDay ? summary.topDay.date : "—"}
+            hint={summary.topDay ? `${formatAmount(summary.topDay.total)} ${baseCurrency}` : undefined}
+          />
+          <StatCard label="Expenses" value={String(records.length)} />
+        </div>
       </section>
 
-      <section className="grid md:grid-cols-2 gap-4">
-        <TwoColTable
-          title="By category"
-          rows={summary.byCategory.map((c) => [c.category, c.total.toFixed(2)])}
-        />
-        <TwoColTable
-          title="By user"
-          rows={summary.byUser.map((u) => [u.userName, u.total.toFixed(2)])}
-        />
-      </section>
-
+      {/* CHARTS */}
       {records.length > 0 && (
-        <>
-          <SpendingLineChart records={expandForDailyAnalytics(records)} />
-          <PaymentMethodChart records={records} baseCurrency={baseCurrency} />
-          <section className="space-y-2">
-            <h2 className="font-medium">Rankings</h2>
-            <RankingLists records={records} baseCurrency={baseCurrency} />
-          </section>
-          <SettlementSummarySection records={records} baseCurrency={baseCurrency} />
-        </>
+        <section>
+          <SectionHeader title="Charts" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <SpendingLineChart records={expandForDailyAnalytics(records)} />
+            <PaymentMethodChart records={records} baseCurrency={baseCurrency} />
+          </div>
+        </section>
       )}
 
+      {/* BREAKDOWNS */}
       <section>
-        <h2 className="font-medium mb-2">Expense records ({records.length})</h2>
-        <div className="bg-white border border-zinc-200 rounded-xl overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-zinc-50 text-zinc-600">
-              <tr>
-                <th className="text-left px-3 py-2">Date</th>
-                <th className="text-left px-3 py-2">Merchant</th>
-                <th className="text-left px-3 py-2">Category</th>
-                <th className="text-left px-3 py-2">Payer</th>
-                <th className="text-left px-3 py-2">Split</th>
-                <th className="text-right px-3 py-2">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r) => (
-                <tr key={r.id} className="border-t border-zinc-100">
-                  <td className="px-3 py-2 whitespace-nowrap">{r.date}</td>
-                  <td className="px-3 py-2">{r.merchant || "—"}</td>
-                  <td className="px-3 py-2">{r.category}</td>
-                  <td className="px-3 py-2">{r.payerName || r.userName}</td>
-                  <td className="px-3 py-2">{r.splitType ?? "—"}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <div>{r.amount.toFixed(2)} {r.currency}</div>
-                    {typeof r.baseAmount === "number" && r.baseCurrency && r.baseCurrency !== r.currency && (
-                      <div className="text-xs text-zinc-500">~{r.baseAmount.toFixed(2)} {r.baseCurrency}</div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {records.length === 0 && (
-                <tr><td colSpan={6} className="text-center text-zinc-500 py-6">No records in this range.</td></tr>
-              )}
-            </tbody>
-          </table>
+        <SectionHeader title="Breakdown" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+          <BreakdownTable
+            title="By category"
+            rows={summary.byCategory.map((c) => [c.category, c.total.toFixed(2)])}
+          />
+          <BreakdownTable
+            title="By person"
+            rows={summary.byUser.map((u) => [u.userName, u.total.toFixed(2)])}
+          />
         </div>
+      </section>
+
+      {/* RANKINGS */}
+      {records.length > 0 && (
+        <section>
+          <SectionHeader title="Rankings" meta="TOP 10" />
+          <RankingLists records={records} baseCurrency={baseCurrency} />
+        </section>
+      )}
+
+      {/* SETTLEMENT SUMMARY */}
+      {records.length > 0 && (
+        <SettlementSummarySection records={records} baseCurrency={baseCurrency} />
+      )}
+
+      {/* RECORDS TABLE */}
+      <section>
+        <SectionHeader title="All expenses" meta={`${records.length} ROW${records.length === 1 ? "" : "S"}`} />
+        <Card padding={0}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "var(--color-bg-soft)", color: "var(--color-ink-2)" }}>
+                  <Th>Date</Th>
+                  <Th>Merchant</Th>
+                  <Th>Category</Th>
+                  <Th>Payer</Th>
+                  <Th>Split</Th>
+                  <Th align="right">Amount</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.map((r) => (
+                  <tr key={r.id} style={{ borderTop: "1px solid var(--color-line-soft)" }}>
+                    <Td className="fxt-mono" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{r.date}</Td>
+                    <Td>{r.merchant || "—"}</Td>
+                    <Td>{r.category}</Td>
+                    <Td>{r.payerName || r.userName}</Td>
+                    <Td><SplitLabel value={r.splitType} /></Td>
+                    <Td align="right">
+                      <div className="fxt-mono" style={{ fontWeight: 500 }}>
+                        {r.amount.toFixed(2)} {r.currency}
+                      </div>
+                      {typeof r.baseAmount === "number" && r.baseCurrency && r.baseCurrency !== r.currency && (
+                        <div className="fxt-mono" style={{ fontSize: 11, color: "var(--color-ink-3)" }}>
+                          ≈ {r.baseAmount.toFixed(2)} {r.baseCurrency}
+                        </div>
+                      )}
+                    </Td>
+                  </tr>
+                ))}
+                {records.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: 24, textAlign: "center", color: "var(--color-ink-3)" }}>
+                      No expenses in this range.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       </section>
     </div>
   );
@@ -234,40 +308,77 @@ function SettlementSummarySection({ records, baseCurrency }: { records: ExpenseR
   const settlements = calculateSettlements(balances);
   if (balances.length === 0) return null;
   return (
-    <section className="space-y-2">
-      <h2 className="font-medium">Settlement summary</h2>
-      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-50 text-zinc-600">
-            <tr>
-              <th className="text-left px-3 py-2">Person</th>
-              <th className="text-right px-3 py-2">Paid</th>
-              <th className="text-right px-3 py-2">Share</th>
-              <th className="text-right px-3 py-2">Net</th>
-            </tr>
-          </thead>
-          <tbody>
-            {balances.map((b) => (
-              <tr key={b.userId} className="border-t border-zinc-100">
-                <td className="px-3 py-2">{b.userName}</td>
-                <td className="px-3 py-2 text-right">{b.totalPaid.toFixed(2)}</td>
-                <td className="px-3 py-2 text-right">{b.totalOwed.toFixed(2)}</td>
-                <td className={`px-3 py-2 text-right font-medium ${b.net > 0 ? "text-emerald-700" : b.net < 0 ? "text-red-700" : "text-zinc-500"}`}>
-                  {b.net > 0 ? "+" : ""}{b.net.toFixed(2)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <section>
+      <SectionHeader title="Settlement summary" meta={`${baseCurrency}`} />
+      <Card padding={0}>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {balances.map((b, i) => (
+            <li
+              key={b.userId}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                padding: "12px 16px",
+                borderTop: i === 0 ? "0" : "1px solid var(--color-line-soft)",
+              }}
+            >
+              <span style={{ fontFamily: "var(--font-serif)", fontSize: 14 }}>{b.userName}</span>
+              <span className="fxt-mono" style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+                paid {b.totalPaid.toFixed(2)} · owed {b.totalOwed.toFixed(2)}
+              </span>
+              <span
+                className="fxt-mono"
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color:
+                    b.net > 0
+                      ? "var(--color-sage-ink)"
+                      : b.net < 0
+                        ? "var(--color-accent-ink)"
+                        : "var(--color-ink-3)",
+                  minWidth: 80,
+                  textAlign: "right",
+                }}
+              >
+                {b.net > 0 ? "+" : ""}{b.net.toFixed(2)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card>
       {settlements.length > 0 && (
-        <ul className="space-y-1">
+        <ul
+          style={{
+            listStyle: "none",
+            margin: "10px 0 0",
+            padding: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
           {settlements.map((s) => (
-            <li key={`${s.fromUserId}->${s.toUserId}`} className="bg-white border border-zinc-200 rounded p-2 text-sm">
-              <span className="font-medium">{s.fromUserName}</span>
-              <span className="text-zinc-500"> pays </span>
-              <span className="font-medium">{s.toUserName}</span>
-              <span className="ml-2 text-zinc-900">{s.amount.toFixed(2)} {baseCurrency}</span>
+            <li
+              key={`${s.fromUserId}->${s.toUserId}`}
+              style={{
+                background: "var(--color-surface)",
+                border: "1px solid var(--color-line)",
+                borderRadius: "var(--radius-md)",
+                padding: "10px 14px",
+                fontSize: 14,
+                fontFamily: "var(--font-serif)",
+                color: "var(--color-ink)",
+              }}
+            >
+              <strong>{s.fromUserName}</strong>
+              <span style={{ color: "var(--color-ink-3)", fontStyle: "italic" }}> pays </span>
+              <strong>{s.toUserName}</strong>
+              <span className="fxt-mono" style={{ marginLeft: 10, fontSize: 13 }}>
+                {s.amount.toFixed(2)} {baseCurrency}
+              </span>
             </li>
           ))}
         </ul>
@@ -276,34 +387,138 @@ function SettlementSummarySection({ records, baseCurrency }: { records: ExpenseR
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+function BreakdownTable({ title, rows }: { title: string; rows: Array<[string, string]> }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-xl p-4">
-      <div className="text-xs text-zinc-500">{label}</div>
-      <div className="text-lg font-semibold mt-1">{value}</div>
+    <div>
+      <div
+        className="fxt-mono"
+        style={{
+          fontSize: 11,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: "var(--color-ink-3)",
+          marginBottom: 8,
+          paddingLeft: 4,
+        }}
+      >
+        {title}
+      </div>
+      <Card padding={0}>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {rows.map(([k, v], i) => (
+            <li
+              key={k + i}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                padding: "10px 14px",
+                borderTop: i === 0 ? "0" : "1px solid var(--color-line-soft)",
+              }}
+            >
+              <span style={{ fontSize: 13, color: "var(--color-ink)" }}>{k}</span>
+              <span className="fxt-mono" style={{ fontSize: 13, color: "var(--color-ink-2)" }}>{v}</span>
+            </li>
+          ))}
+          {rows.length === 0 && (
+            <li style={{ padding: 16, textAlign: "center", color: "var(--color-ink-3)", fontSize: 13 }}>
+              No data.
+            </li>
+          )}
+        </ul>
+      </Card>
     </div>
   );
 }
 
-function TwoColTable({ title, rows }: { title: string; rows: Array<[string, string]> }) {
+function DateField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
-    <div>
-      <h2 className="font-medium mb-2">{title}</h2>
-      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <tbody>
-            {rows.map(([k, v], i) => (
-              <tr key={k + i} className={i === 0 ? "" : "border-t border-zinc-100"}>
-                <td className="px-3 py-2">{k}</td>
-                <td className="px-3 py-2 text-right">{v}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={2} className="text-center text-zinc-500 py-4">No data.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <label style={{ display: "block", minWidth: 140 }}>
+      <span
+        style={{
+          display: "block",
+          fontFamily: "var(--font-mono)",
+          fontSize: 11,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: "var(--color-ink-3)",
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </span>
+      <input
+        className="fxt-focus"
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-line)",
+          borderRadius: "var(--radius-md)",
+          padding: "8px 12px",
+          fontSize: 13,
+          fontFamily: "var(--font-sans)",
+          color: "var(--color-ink)",
+          outline: "none",
+        }}
+      />
+    </label>
   );
+}
+
+function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
+  return (
+    <th
+      style={{
+        textAlign: align,
+        padding: "10px 14px",
+        fontWeight: 500,
+        fontSize: 11,
+        fontFamily: "var(--font-mono)",
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        color: "var(--color-ink-3)",
+      }}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({
+  children,
+  align = "left",
+  className,
+  style,
+}: {
+  children: React.ReactNode;
+  align?: "left" | "right";
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <td
+      className={className}
+      style={{
+        textAlign: align,
+        padding: "10px 14px",
+        color: "var(--color-ink)",
+        ...style,
+      }}
+    >
+      {children}
+    </td>
+  );
+}
+
+function SplitLabel({ value }: { value?: string }) {
+  if (!value) return <span style={{ color: "var(--color-ink-3)" }}>—</span>;
+  const label =
+    value === "no_split" ? "Personal"
+    : value === "equal_split" ? "Equal"
+    : value === "custom_amount" ? "Custom"
+    : value;
+  return <span style={{ fontSize: 12, color: "var(--color-ink-2)" }}>{label}</span>;
 }

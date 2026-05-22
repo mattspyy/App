@@ -1,9 +1,16 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "@/lib/session";
-import { expandForDailyAnalytics, onlyConfirmed, totalAmount, totalByCategory, totalByDate, totalByUser } from "@/lib/chartUtils";
+import {
+  expandForDailyAnalytics,
+  onlyConfirmed,
+  totalAmount,
+  totalByCategory,
+  totalByDate,
+  totalByUser,
+} from "@/lib/chartUtils";
 import { findTripBudget, tripBudgetSummary, tripBudgetUsage } from "@/lib/budget";
 import type { Budget, ExpenseRecord, Trip } from "@/lib/types";
 import CategoryPieChart from "@/components/CategoryPieChart";
@@ -14,7 +21,15 @@ import EmptyState from "@/components/EmptyState";
 import RefreshButton from "@/components/RefreshButton";
 import PullToRefreshIndicator from "@/components/PullToRefreshIndicator";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
-import { useCallback } from "react";
+import {
+  Card,
+  Badge,
+  Alert,
+  ButtonLink,
+  Button,
+  SectionHeader,
+  StatCard,
+} from "@/components/ui";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -48,11 +63,11 @@ function tripDayLabel(trip: Trip): { primary: string; secondary: string } {
   const today = isoToday();
   if (trip.startDate && today < trip.startDate) {
     const n = daysBetween(today, trip.startDate);
-    return { primary: `In ${n}d`, secondary: "until trip" };
+    return { primary: `In ${n} d`, secondary: "until trip" };
   }
   if (trip.endDate && today > trip.endDate) {
     const n = daysBetween(trip.endDate, today);
-    return { primary: `${n}d ago`, secondary: "trip ended" };
+    return { primary: `${n} d ago`, secondary: "trip ended" };
   }
   if (trip.startDate && trip.endDate) {
     const totalDays = daysBetween(trip.startDate, trip.endDate) + 1;
@@ -75,9 +90,7 @@ export default function TripDashboardPage() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    if (!session) {
-      router.replace("/login");
-    }
+    if (!session) router.replace("/login");
   }, [session, router]);
 
   const load = useCallback(async (): Promise<void> => {
@@ -108,19 +121,22 @@ export default function TripDashboardPage() {
     }
   }, [session, tripId]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const { pulling, distance, refreshing, trigger } = usePullToRefresh(load);
 
   async function handleDelete() {
     if (!session || !trip) return;
-    const ok = confirm(`Delete trip "${trip.tripName}"? The trip will be archived in Notion (restorable from Notion if needed). Expenses are not deleted and will reference the archived trip ID.`);
+    const ok = confirm(
+      `Delete trip "${trip.tripName}"? The trip will be archived in Notion (restorable from Notion if needed). Expenses are not deleted and will reference the archived trip ID.`,
+    );
     if (!ok) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/trips/${encodeURIComponent(trip.tripId)}?userId=${encodeURIComponent(session.userId)}`, { method: "DELETE" });
+      const res = await fetch(
+        `/api/trips/${encodeURIComponent(trip.tripId)}?userId=${encodeURIComponent(session.userId)}`,
+        { method: "DELETE" },
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to delete trip");
       router.replace("/trips");
@@ -167,39 +183,95 @@ export default function TripDashboardPage() {
     [records, today],
   );
 
-  if (!session || loading) return <div className="text-sm text-zinc-500">Loading…</div>;
-  if (error) return <div className="bg-red-50 text-red-700 text-sm p-3 rounded">{error}</div>;
-  if (!trip) return <div className="text-sm text-zinc-500">Trip not found.</div>;
+  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
+  if (error) return <Alert tone="accent" title="Couldn't load this trip.">{error}</Alert>;
+  if (!trip) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Trip not found.</div>;
 
   const dayLabel = tripDayLabel(trip);
   const scanHref = `/scan?tripId=${encodeURIComponent(trip.tripId)}`;
+  const budgetUsedFrac = stats.budgetAmount && stats.budgetAmount > 0 ? stats.total / stats.budgetAmount : null;
+  const budgetStatus =
+    budgetUsedFrac == null ? null
+    : budgetUsedFrac >= 1 ? "over"
+    : budgetUsedFrac >= 0.8 ? "approaching"
+    : "ontrack";
 
   return (
-    <div className="space-y-5">
+    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       <PullToRefreshIndicator pulling={pulling} distance={distance} refreshing={refreshing} />
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-zinc-500">
-          <Link href="/trips" className="underline">Trips</Link> /
-        </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <Link href="/trips" style={{ fontSize: 12, color: "var(--color-ink-2)", textDecoration: "none" }}>
+          ← Trips
+        </Link>
         <RefreshButton onClick={trigger} refreshing={refreshing} />
       </div>
 
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-amber-400 text-white shadow-sm">
-        <div className="absolute inset-0 opacity-20 mix-blend-overlay" aria-hidden style={{
-          backgroundImage: "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.6), transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.4), transparent 50%)",
-        }} />
-        <div className="relative p-5 sm:p-7">
-          <div className="text-xs uppercase tracking-wide opacity-80">{trip.destination || "Trip"}</div>
-          <h1 className="text-2xl sm:text-3xl font-semibold mt-1">{trip.tripName}</h1>
-          <div className="text-sm opacity-90 mt-1">{formatRange(trip.startDate, trip.endDate)} · Base {trip.baseCurrency}</div>
-          <div className="mt-4 inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 text-xs">
-            <span>📅</span>
-            <span className="font-medium">{dayLabel.primary}</span>
-            <span className="opacity-80">· {dayLabel.secondary}</span>
+      {/* BANNER */}
+      <section
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: "var(--radius-2xl)",
+          background:
+            "linear-gradient(135deg, color-mix(in oklch, var(--color-accent) 65%, var(--color-ink) 0%) 0%, color-mix(in oklch, var(--color-accent) 75%, var(--color-amber) 25%) 60%, color-mix(in oklch, var(--color-amber) 70%, var(--color-accent)) 100%)",
+          color: "white",
+          padding: "28px 24px",
+        }}
+      >
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "radial-gradient(circle at 25% 20%, rgba(255,255,255,0.35), transparent 55%), radial-gradient(circle at 75% 85%, rgba(255,255,255,0.18), transparent 50%)",
+            mixBlendMode: "overlay",
+            opacity: 0.85,
+          }}
+        />
+        <div style={{ position: "relative" }}>
+          <div className="fxt-mono" style={{ fontSize: 11, letterSpacing: "0.12em", opacity: 0.85 }}>
+            {trip.destination ? trip.destination.toUpperCase() : "TRIP"}
+          </div>
+          <h1
+            className="fxt-display"
+            style={{
+              fontSize: "clamp(34px, 6vw, 56px)",
+              margin: "6px 0 8px",
+              lineHeight: 1.05,
+              letterSpacing: "-0.02em",
+              color: "white",
+            }}
+          >
+            {trip.tripName}
+          </h1>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", fontSize: 13, opacity: 0.95 }}>
+            <span>{formatRange(trip.startDate, trip.endDate)}</span>
+            <span aria-hidden style={{ opacity: 0.5 }}>·</span>
+            <span>Base <strong className="fxt-mono">{trip.baseCurrency}</strong></span>
+          </div>
+          <div
+            style={{
+              marginTop: 14,
+              display: "inline-flex",
+              gap: 8,
+              alignItems: "center",
+              background: "rgba(255,255,255,0.18)",
+              backdropFilter: "blur(6px)",
+              borderRadius: 999,
+              padding: "6px 14px",
+              fontSize: 13,
+            }}
+          >
+            <span aria-hidden>📅</span>
+            <strong>{dayLabel.primary}</strong>
+            <span style={{ opacity: 0.85 }}>· {dayLabel.secondary}</span>
           </div>
         </div>
       </section>
 
+      {/* BUDGET PACE */}
       {(() => {
         if (!trip) return null;
         const summary = tripBudgetSummary({
@@ -219,34 +291,29 @@ export default function TripDashboardPage() {
           : summary.pace === "under" ? "Under pace"
           : summary.pace === "on_track" ? "On pace"
           : "—";
-        const paceTone =
-          summary.pace === "over" ? "text-red-700"
-          : summary.pace === "under" ? "text-emerald-700"
-          : summary.pace === "on_track" ? "text-zinc-700"
-          : "text-zinc-500";
+        const paceTone: "amber" | "sage" | "neutral" =
+          summary.pace === "over" ? "amber"
+          : summary.pace === "under" ? "sage"
+          : "neutral";
         return (
-          <section className="bg-white border border-zinc-200 rounded-xl p-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div>
-              <div className="text-xs text-zinc-500">Avg / day</div>
-              <div className="font-medium">{summary.avgPerDay != null ? `${formatAmount(summary.avgPerDay)} ${cur}` : "—"}</div>
+          <Card padding={16} tone="soft">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
+              <PaceCell label="Avg / day" value={summary.avgPerDay != null ? `${formatAmount(summary.avgPerDay)} ${cur}` : "—"} />
+              <PaceCell label="Safe daily" value={summary.safeDaily != null ? `${formatAmount(summary.safeDaily)} ${cur}` : "—"} />
+              <PaceCell label="Days left" value={String(summary.remainingDays ?? "—")} />
+              <div>
+                <div className="fxt-eyebrow">Pace</div>
+                <div style={{ marginTop: 4 }}>
+                  <Badge tone={paceTone}>{paceLabel}</Badge>
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-xs text-zinc-500">Safe daily</div>
-              <div className="font-medium">{summary.safeDaily != null ? `${formatAmount(summary.safeDaily)} ${cur}` : "—"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-zinc-500">Days left</div>
-              <div className="font-medium">{summary.remainingDays ?? "—"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-zinc-500">Pace</div>
-              <div className={`font-medium ${paceTone}`}>{paceLabel}</div>
-            </div>
-          </section>
+          </Card>
         );
       })()}
 
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* STAT CARDS */}
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
         <StatCard
           label="Today"
           value={`${formatAmount(stats.todayTotal)} ${trip.baseCurrency}`}
@@ -257,36 +324,43 @@ export default function TripDashboardPage() {
           value={`${formatAmount(stats.total)} ${trip.baseCurrency}`}
           hint={`${records.length} expense${records.length === 1 ? "" : "s"}`}
         />
-        <StatCard
-          label="Budget"
-          value={stats.budgetAmount != null && stats.budgetPct != null ? `${stats.budgetPct.toFixed(0)}%` : "—"}
-          hint={stats.budgetAmount != null && stats.budgetRemaining != null && stats.budgetCurrency
-            ? `${formatAmount(stats.budgetRemaining)} ${stats.budgetCurrency} left`
-            : "not set"}
-          progress={stats.budgetPct ?? undefined}
-        />
-        <StatCard label={dayLabel.secondary} value={dayLabel.primary} hint="" />
+        {stats.budgetAmount != null && stats.budgetCurrency ? (
+          <StatCard
+            label="Budget"
+            value={`${stats.budgetPct?.toFixed(0) ?? "—"}%`}
+            hint={
+              stats.budgetRemaining != null
+                ? `${formatAmount(stats.budgetRemaining)} ${stats.budgetCurrency} left`
+                : undefined
+            }
+            progress={budgetUsedFrac ?? undefined}
+            tone={budgetStatus === "over" ? "amber" : budgetStatus === "approaching" ? "amber" : "surface"}
+          />
+        ) : (
+          <StatCard label="Budget" value="—" hint="not set" />
+        )}
+        <StatCard label={dayLabel.secondary} value={dayLabel.primary} />
       </section>
 
-      <section className="flex flex-wrap gap-2">
-        <Link
-          href={scanHref}
-          className="flex-1 min-w-[160px] bg-zinc-900 text-white px-4 py-3 rounded-xl text-sm text-center font-medium hover:bg-zinc-800 transition"
-        >
+      {/* ACTIONS */}
+      <section style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <ButtonLink href={scanHref} variant="accent" size="lg" full={false}>
           📷 Add expense
-        </Link>
-        <Link
+        </ButtonLink>
+        <ButtonLink
           href={`/trips/${encodeURIComponent(trip.tripId)}/settlement`}
-          className="px-4 py-3 rounded-xl text-sm border border-zinc-300 bg-white hover:bg-zinc-50 transition text-center"
+          variant="secondary"
+          size="lg"
         >
           💱 Settlement
-        </Link>
-        <Link
+        </ButtonLink>
+        <ButtonLink
           href={`/trips/${encodeURIComponent(trip.tripId)}/report`}
-          className="px-4 py-3 rounded-xl text-sm border border-zinc-300 bg-white hover:bg-zinc-50 transition text-center"
+          variant="secondary"
+          size="lg"
         >
           📊 Report
-        </Link>
+        </ButtonLink>
       </section>
 
       {records.length === 0 ? (
@@ -299,86 +373,84 @@ export default function TripDashboardPage() {
         />
       ) : (
         <>
-          <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-zinc-900">Today</h2>
+          <section>
+            <SectionHeader title="Today" meta={`${todayRecords.length} EXPENSE${todayRecords.length === 1 ? "" : "S"}`} />
             {todayRecords.length === 0 ? (
-              <div className="text-sm text-zinc-500 border border-dashed border-zinc-300 rounded-xl p-4 bg-white">
-                Nothing logged today yet.
-              </div>
+              <Card padding={16} tone="soft">
+                <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>Nothing logged today yet.</div>
+              </Card>
             ) : (
-              <ul className="space-y-2">
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
                 {todayRecords.map((r) => <ExpenseCard key={r.id} record={r} baseCurrency={trip.baseCurrency} />)}
               </ul>
             )}
           </section>
 
           {recentRecords.length > 0 && (
-            <section className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-zinc-900">Recent</h2>
-                <Link href={`/history?partyId=${encodeURIComponent(trip.tripId)}`} className="text-xs text-zinc-500 underline">
-                  See all
-                </Link>
-              </div>
-              <ul className="space-y-2">
+            <section>
+              <SectionHeader
+                title="Recent"
+                action={
+                  <Link
+                    href={`/history?partyId=${encodeURIComponent(trip.familyId)}`}
+                    style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "underline", textUnderlineOffset: 3 }}
+                  >
+                    See all
+                  </Link>
+                }
+              />
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
                 {recentRecords.map((r) => <ExpenseCard key={r.id} record={r} baseCurrency={trip.baseCurrency} />)}
               </ul>
             </section>
           )}
 
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-zinc-900">Breakdown</h2>
-            <div className="grid md:grid-cols-2 gap-4">
+          <section>
+            <SectionHeader title="Breakdown" />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
               <CategoryPieChart records={onlyConfirmed(records)} />
               <UserBarChart records={onlyConfirmed(records)} />
             </div>
+          </section>
+
+          <section>
+            <SectionHeader title="Daily trend" />
             <SpendingLineChart records={expandForDailyAnalytics(onlyConfirmed(records))} />
           </section>
         </>
       )}
 
-      <section className="pt-6 border-t border-zinc-200">
-        <h2 className="font-medium text-zinc-900 mb-1">Danger zone</h2>
-        <p className="text-xs text-zinc-500 mb-3">
-          Deleting this trip archives it in Notion. Expenses stay in the database but will reference a deleted trip ID.
+      {/* DANGER ZONE */}
+      <section
+        style={{
+          paddingTop: 24,
+          marginTop: 8,
+          borderTop: "1px solid var(--color-line-soft)",
+        }}
+      >
+        <Badge tone="amber" size="sm">DANGER ZONE</Badge>
+        <h3 style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 600, margin: "10px 0 6px" }}>
+          Delete this trip
+        </h3>
+        <p style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.5, margin: "0 0 12px", maxWidth: "60ch" }}>
+          Archives the trip in Notion. Expenses stay in the database but will reference a deleted trip ID.
         </p>
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={deleting}
-          className="text-sm border border-red-300 text-red-700 bg-white hover:bg-red-50 px-3 py-2 rounded-md disabled:opacity-50"
-        >
+        <Button type="button" variant="danger" size="md" onClick={handleDelete} disabled={deleting}>
           {deleting ? "Deleting…" : "Delete trip"}
-        </button>
+        </Button>
       </section>
     </div>
   );
 }
 
-function StatCard({
-  label,
-  value,
-  hint,
-  progress,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  progress?: number;
-}) {
+function PaceCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-xl p-3">
-      <div className="text-xs text-zinc-500">{label}</div>
-      <div className="text-lg font-semibold mt-1 truncate">{value}</div>
-      {typeof progress === "number" && (
-        <div className="h-1.5 bg-zinc-100 rounded mt-2 overflow-hidden">
-          <div
-            className={`h-full ${progress >= 100 ? "bg-red-500" : progress >= 80 ? "bg-amber-500" : "bg-emerald-500"}`}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      )}
-      {hint && <div className="text-xs text-zinc-500 mt-1 truncate">{hint}</div>}
+    <div>
+      <div className="fxt-eyebrow">{label}</div>
+      <div className="fxt-mono" style={{ fontSize: 14, color: "var(--color-ink)", fontWeight: 500, marginTop: 4 }}>
+        {value}
+      </div>
     </div>
   );
 }
+

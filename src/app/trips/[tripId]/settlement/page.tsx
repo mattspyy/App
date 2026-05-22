@@ -5,6 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "@/lib/session";
 import { calculateBalances, calculateSettlements, type Settlement } from "@/lib/settlement";
 import type { ExpenseRecord, Trip } from "@/lib/types";
+import {
+  Card,
+  Alert,
+  Badge,
+  Button,
+  ButtonLink,
+  SectionHeader,
+} from "@/components/ui";
 
 type SettlementPaymentApi = {
   id: string;
@@ -19,6 +27,10 @@ type SettlementPaymentApi = {
   createdAt: string;
 };
 
+function formatAmount(value: number): string {
+  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function SettlementPage() {
   const params = useParams<{ tripId: string }>();
   const tripId = params?.tripId;
@@ -30,10 +42,13 @@ export default function SettlementPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markingKey, setMarkingKey] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
 
   async function loadPayments(groupId: string, currentTripId: string): Promise<void> {
     try {
-      const r = await fetch(`/api/settlement-payments?groupId=${encodeURIComponent(groupId)}&tripId=${encodeURIComponent(currentTripId)}`);
+      const r = await fetch(
+        `/api/settlement-payments?groupId=${encodeURIComponent(groupId)}&tripId=${encodeURIComponent(currentTripId)}`,
+      );
       const body = await r.json();
       if (!r.ok) throw new Error(body.error || "Failed to load settlement payments");
       setPayments(body.payments || []);
@@ -124,83 +139,146 @@ export default function SettlementPage() {
       .filter((s) => s.amount > 0.01);
   }, [rawSettlements, paidByPair]);
 
-  if (!session || loading) return <div className="text-sm text-zinc-500">Loading…</div>;
-  if (error) return <div className="bg-red-50 text-red-700 text-sm p-3 rounded">{error}</div>;
-  if (!trip) return <div className="text-sm text-zinc-500">Trip not found.</div>;
+  // Build a userId → userName map from balances so we can show names on the
+  // recorded-payments list (which only stores IDs).
+  const nameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of balances) m.set(b.userId, b.userName);
+    return m;
+  }, [balances]);
+
+  async function handleCopySummary() {
+    if (!trip) return;
+    const lines: string[] = [];
+    lines.push(`${trip.tripName} — settlement`);
+    if (trip.startDate || trip.endDate) {
+      lines.push(`${trip.startDate || "?"} → ${trip.endDate || "?"}`);
+    }
+    lines.push("");
+    if (balances.length > 0) {
+      lines.push("Balances:");
+      for (const b of balances) {
+        const sign = b.net > 0 ? "+" : "";
+        lines.push(`  ${b.userName}: ${sign}${b.net.toFixed(2)} ${baseCurrency}`);
+      }
+      lines.push("");
+    }
+    if (settlements.length === 0) {
+      lines.push("Everyone is settled up.");
+    } else {
+      lines.push("Who pays whom:");
+      for (const s of settlements) {
+        lines.push(`  ${s.fromUserName} pays ${s.toUserName} ${s.amount.toFixed(2)} ${baseCurrency}`);
+      }
+    }
+    const text = lines.join("\n");
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setCopyStatus("copied");
+      } else {
+        throw new Error("Clipboard API unavailable");
+      }
+    } catch {
+      setCopyStatus("failed");
+    } finally {
+      setTimeout(() => setCopyStatus("idle"), 1800);
+    }
+  }
+
+  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
+  if (error) return <Alert tone="accent" title="Couldn't load settlement.">{error}</Alert>;
+  if (!trip) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Trip not found.</div>;
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <div className="text-xs text-zinc-500">
-          <Link href="/trips" className="underline">Trips</Link> /{" "}
-          <Link href={`/trips/${trip.tripId}`} className="underline">{trip.tripName}</Link> /
-        </div>
-        <h1 className="text-2xl font-semibold">Settlement</h1>
-        <p className="text-sm text-zinc-500">All amounts in {baseCurrency}. Records marked as not split are excluded.</p>
-        {skippedCount > 0 && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mt-2">
-            {skippedCount} record{skippedCount === 1 ? "" : "s"} skipped — no conversion to {baseCurrency} available.
-          </p>
-        )}
+    <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+        <Link href="/trips" style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>Trips</Link>
+        <span style={{ margin: "0 6px" }}>/</span>
+        <Link href={`/trips/${trip.tripId}`} style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>
+          {trip.tripName}
+        </Link>
       </div>
 
-      <section className="space-y-2">
-        <h2 className="font-medium">Per-person balance</h2>
-        {balances.length === 0 ? (
-          <div className="text-sm text-zinc-500 border border-dashed border-zinc-300 rounded p-4">No splittable expenses yet.</div>
-        ) : (
-          <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-zinc-50 text-zinc-600">
-                <tr>
-                  <th className="text-left px-3 py-2">Person</th>
-                  <th className="text-right px-3 py-2">Paid</th>
-                  <th className="text-right px-3 py-2">Share owed</th>
-                  <th className="text-right px-3 py-2">Net</th>
-                </tr>
-              </thead>
-              <tbody>
-                {balances.map((b) => (
-                  <tr key={b.userId} className="border-t border-zinc-100">
-                    <td className="px-3 py-2">{b.userName}</td>
-                    <td className="px-3 py-2 text-right">{b.totalPaid.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">{b.totalOwed.toFixed(2)}</td>
-                    <td className={`px-3 py-2 text-right font-medium ${b.net > 0 ? "text-emerald-700" : b.net < 0 ? "text-red-700" : "text-zinc-500"}`}>
-                      {b.net > 0 ? "+" : ""}{b.net.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      <header>
+        <div className="fxt-eyebrow">SETTLEMENT</div>
+        <h1
+          className="fxt-display"
+          style={{ fontSize: "clamp(28px, 4.6vw, 40px)", margin: "8px 0 6px", lineHeight: 1.1, letterSpacing: "-0.015em" }}
+        >
+          {settlements.length === 0 && balances.length > 0
+            ? <>All <em style={{ fontStyle: "italic", color: "var(--color-sage)" }}>settled.</em></>
+            : <>Who owes <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>whom?</em></>}
+        </h1>
+        <p style={{ color: "var(--color-ink-2)", fontSize: 13, margin: 0, maxWidth: "56ch" }}>
+          All amounts in <strong className="fxt-mono" style={{ color: "var(--color-ink)" }}>{baseCurrency}</strong>.
+          Expenses marked as not split are excluded.
+        </p>
+      </header>
 
-      <section className="space-y-2">
-        <h2 className="font-medium">Who owes whom</h2>
+      {skippedCount > 0 && (
+        <Alert tone="amber" title={`${skippedCount} expense${skippedCount === 1 ? "" : "s"} skipped.`}>
+          No conversion to {baseCurrency} available for these — they aren&apos;t included in the totals below.
+        </Alert>
+      )}
+
+      {/* SUGGESTED SETTLEMENTS */}
+      <section>
+        <SectionHeader
+          title="Suggested payments"
+          meta={settlements.length === 0 ? "ALL DONE" : `${settlements.length} TO GO`}
+          action={
+            balances.length > 0 ? (
+              <Button type="button" variant="ghost" size="sm" onClick={handleCopySummary}>
+                {copyStatus === "copied" ? "Copied ✓" : copyStatus === "failed" ? "Copy failed" : "Copy summary"}
+              </Button>
+            ) : undefined
+          }
+        />
         {settlements.length === 0 ? (
-          <div className="text-sm text-zinc-500 border border-dashed border-zinc-300 rounded p-4">Everyone is settled up.</div>
+          <Card padding={20} tone="sage">
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <span aria-hidden style={{ fontSize: 24 }}>🎉</span>
+              <div>
+                <div style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 16, color: "var(--color-sage-ink)" }}>
+                  Everyone is settled up.
+                </div>
+                <div style={{ fontSize: 13, color: "var(--color-ink-2)", marginTop: 2 }}>
+                  Nothing to chase. Have a coffee.
+                </div>
+              </div>
+            </div>
+          </Card>
         ) : (
-          <ul className="space-y-1">
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
             {settlements.map((s) => {
               const key = `${s.fromUserId}->${s.toUserId}`;
               const marking = markingKey === key;
               return (
-                <li key={key} className="bg-white border border-zinc-200 rounded p-3 text-sm flex items-center justify-between gap-3">
-                  <div>
-                    <span className="font-medium">{s.fromUserName}</span>
-                    <span className="text-zinc-500"> pays </span>
-                    <span className="font-medium">{s.toUserName}</span>
-                    <span className="ml-2 text-zinc-900">{s.amount.toFixed(2)} {baseCurrency}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => markAsPaid(s, baseCurrency)}
-                    disabled={marking}
-                    className="text-xs px-2.5 py-1 rounded border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50 disabled:opacity-50"
-                  >
-                    {marking ? "Recording…" : "Mark as Paid"}
-                  </button>
+                <li key={key}>
+                  <Card padding={16}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                      <div style={{ minWidth: 0, flex: "1 1 200px" }}>
+                        <div style={{ fontFamily: "var(--font-serif)", fontSize: 16, color: "var(--color-ink)", lineHeight: 1.4 }}>
+                          <strong>{s.fromUserName}</strong>
+                          <span style={{ color: "var(--color-ink-3)", fontStyle: "italic" }}> pays </span>
+                          <strong>{s.toUserName}</strong>
+                        </div>
+                        <div className="fxt-mono" style={{ fontSize: 18, color: "var(--color-ink)", marginTop: 4, fontWeight: 500 }}>
+                          {formatAmount(s.amount)} {baseCurrency}
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="sage"
+                        size="md"
+                        onClick={() => markAsPaid(s, baseCurrency)}
+                        disabled={marking}
+                      >
+                        {marking ? "Recording…" : "Mark as paid"}
+                      </Button>
+                    </div>
+                  </Card>
                 </li>
               );
             })}
@@ -208,22 +286,113 @@ export default function SettlementPage() {
         )}
       </section>
 
+      {/* BALANCES TABLE */}
+      <section>
+        <SectionHeader title="Per-person balance" meta={`${balances.length} MEMBER${balances.length === 1 ? "" : "S"}`} />
+        {balances.length === 0 ? (
+          <Card padding={20} tone="soft">
+            <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>No splittable expenses yet.</div>
+          </Card>
+        ) : (
+          <Card padding={0}>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {balances.map((b, i) => (
+                <li
+                  key={b.userId}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto auto",
+                    columnGap: 12,
+                    rowGap: 6,
+                    alignItems: "center",
+                    padding: "14px 18px",
+                    borderTop: i === 0 ? "0" : "1px solid var(--color-line-soft)",
+                  }}
+                >
+                  <span style={{ fontFamily: "var(--font-serif)", fontSize: 15, color: "var(--color-ink)" }}>
+                    {b.userName}
+                  </span>
+                  <span className="fxt-mono" style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+                    paid {b.totalPaid.toFixed(2)} · owed {b.totalOwed.toFixed(2)}
+                  </span>
+                  <span
+                    className="fxt-mono"
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color:
+                        b.net > 0
+                          ? "var(--color-sage-ink)"
+                          : b.net < 0
+                            ? "var(--color-accent-ink)"
+                            : "var(--color-ink-3)",
+                      minWidth: 84,
+                      textAlign: "right",
+                    }}
+                  >
+                    {b.net > 0 ? "+" : ""}
+                    {b.net.toFixed(2)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+      </section>
+
+      {/* RECORDED PAYMENTS */}
       {payments.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="font-medium">Recorded payments</h2>
-          <ul className="space-y-1">
-            {payments.map((p) => (
-              <li key={p.id} className="bg-white border border-zinc-200 rounded p-3 text-xs text-zinc-700 flex items-center justify-between gap-2">
-                <span>
-                  {p.amount.toFixed(2)} {p.currency} · {p.date}
-                  <span className="text-zinc-500"> · {p.status}</span>
-                </span>
-                <span className="text-zinc-500">{p.fromUserId.slice(0, 6)} → {p.toUserId.slice(0, 6)}</span>
-              </li>
-            ))}
-          </ul>
+        <section>
+          <SectionHeader title="Recorded payments" meta={`${payments.length} TOTAL`} />
+          <Card padding={0}>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {payments.map((p, i) => {
+                const from = nameById.get(p.fromUserId) || p.fromUserId.slice(0, 6);
+                const to = nameById.get(p.toUserId) || p.toUserId.slice(0, 6);
+                return (
+                  <li
+                    key={p.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      padding: "12px 16px",
+                      borderTop: i === 0 ? "0" : "1px solid var(--color-line-soft)",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: "var(--font-serif)", fontSize: 14, color: "var(--color-ink)" }}>
+                        <strong>{from}</strong>
+                        <span style={{ color: "var(--color-ink-3)", fontStyle: "italic" }}> paid </span>
+                        <strong>{to}</strong>
+                      </div>
+                      <div className="fxt-mono" style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>
+                        {p.date}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <span className="fxt-mono" style={{ fontSize: 14, color: "var(--color-ink)", fontWeight: 500 }}>
+                        {p.amount.toFixed(2)} {p.currency}
+                      </span>
+                      <Badge tone={p.status === "paid" ? "sage" : "amber"} size="sm">
+                        {p.status === "paid" ? "Paid" : "Pending"}
+                      </Badge>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
         </section>
       )}
+
+      <div style={{ marginTop: 4 }}>
+        <ButtonLink href={`/trips/${trip.tripId}/report`} variant="ghost" size="md">
+          See full report →
+        </ButtonLink>
+      </div>
     </div>
   );
 }
