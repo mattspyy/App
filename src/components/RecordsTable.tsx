@@ -1,5 +1,7 @@
+"use client";
 import type { ExpenseRecord } from "@/lib/types";
 import Avatar from "./Avatar";
+import { useLanguage, categoryLabel } from "@/lib/i18n";
 
 type Props = {
   records: ExpenseRecord[];
@@ -14,18 +16,19 @@ function formatAmount(value: number): string {
 }
 
 export default function RecordsTable({ records, baseCurrency }: Props) {
+  const { t, language } = useLanguage();
   return (
     <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-      <div className="text-sm font-medium p-4 border-b border-zinc-200">Recent expenses</div>
+      <div className="text-sm font-medium p-4 border-b border-zinc-200">{t("records.recentExpenses")}</div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-zinc-600">
             <tr>
-              <th className="text-left px-3 py-2">Date</th>
-              <th className="text-left px-3 py-2">Merchant</th>
-              <th className="text-left px-3 py-2">Category</th>
-              <th className="text-left px-3 py-2">Payer</th>
-              <th className="text-right px-3 py-2">Amount</th>
+              <th className="text-left px-3 py-2">{t("records.thDate")}</th>
+              <th className="text-left px-3 py-2">{t("records.thMerchant")}</th>
+              <th className="text-left px-3 py-2">{t("records.thCategory")}</th>
+              <th className="text-left px-3 py-2">{t("records.thPayer")}</th>
+              <th className="text-right px-3 py-2">{t("records.thAmount")}</th>
             </tr>
           </thead>
           <tbody>
@@ -38,8 +41,8 @@ export default function RecordsTable({ records, baseCurrency }: Props) {
               return (
                 <tr key={r.id} className="border-t border-zinc-100">
                   <td className="px-3 py-2 whitespace-nowrap">{r.date}</td>
-                  <td className="px-3 py-2">{r.merchant || "—"}</td>
-                  <td className="px-3 py-2">{r.category}</td>
+                  <td className="px-3 py-2">{r.merchant || t("common.dash")}</td>
+                  <td className="px-3 py-2">{categoryLabel(r.category, language)}</td>
                   <td className="px-3 py-2"><span className="inline-flex items-center gap-2"><Avatar name={r.payerName || r.userName} size={22} />{r.payerName || r.userName}</span></td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     <div>{formatAmount(r.amount)} {r.currency}</div>
@@ -51,7 +54,7 @@ export default function RecordsTable({ records, baseCurrency }: Props) {
               );
             })}
             {records.length === 0 && (
-              <tr><td colSpan={5} className="text-center text-zinc-500 py-6">No expenses.</td></tr>
+              <tr><td colSpan={5} className="text-center text-zinc-500 py-6">{t("records.empty")}</td></tr>
             )}
           </tbody>
         </table>

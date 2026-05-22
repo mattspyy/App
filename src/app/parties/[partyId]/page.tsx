@@ -27,12 +27,14 @@ import {
   SectionHeader,
   TextField,
 } from "@/components/ui";
+import { useLanguage } from "@/lib/i18n";
 
 export default function PartyDashboardPage() {
   const params = useParams<{ partyId: string }>();
   const partyId = params?.partyId;
   const router = useRouter();
   const session = useSession();
+  const { t } = useLanguage();
   const [party, setParty] = useState<Party | null>(null);
   const [records, setRecords] = useState<ExpenseRecord[]>([]);
   const [members, setMembers] = useState<PartyMember[]>([]);
@@ -116,7 +118,7 @@ export default function PartyDashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to invite");
-      setInviteMsg({ tone: "sage", text: `Added ${data.added.username}.` });
+      setInviteMsg({ tone: "sage", text: t("groups.detail.invitedFmt", { name: data.added.username }) });
       setInviteCode("");
       const m = await fetch(
         `/api/parties/${encodeURIComponent(party.partyId)}/members?userId=${encodeURIComponent(session.userId)}`,
@@ -135,7 +137,7 @@ export default function PartyDashboardPage() {
   async function handleDelete() {
     if (!session || !party) return;
     const ok = confirm(
-      `Delete group "${party.partyName}"? Member list will be removed from Supabase. Expenses in Notion are not deleted and will remain referencing this group ID. This cannot be undone.`,
+      t("groups.detail.deleteConfirmFmt", { name: party.partyName }),
     );
     if (!ok) return;
     setDeleting(true);
@@ -153,18 +155,18 @@ export default function PartyDashboardPage() {
     }
   }
 
-  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
-  if (error) return <Alert tone="accent" title="Couldn't load this group.">{error}</Alert>;
-  if (!party) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Group not found.</div>;
+  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("states.loading")}</div>;
+  if (error) return <Alert tone="accent" title={t("errors.couldntLoadGroup")}>{error}</Alert>;
+  if (!party) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("common.notFound")}</div>;
 
   const confirmed = onlyConfirmed(records);
   const monthlyBudget = findMonthlyBudget(budgets, party.partyId);
 
   const headerEyebrow = isPersonal
-    ? "PERSONAL · JUST FOR YOU"
+    ? t("groups.detail.eyebrowPersonal")
     : party.type === "public"
-      ? `PUBLIC · CODE ${party.partyCode || ""}`
-      : "PRIVATE GROUP";
+      ? `${t("groups.detail.eyebrowPublicPrefix")} ${party.partyCode || ""}`
+      : t("groups.detail.eyebrowPrivate");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -173,7 +175,7 @@ export default function PartyDashboardPage() {
       <div>
         <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 10 }}>
           <Link href="/parties" style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>
-            ← Groups
+            {t("groups.detail.backToGroups")}
           </Link>
         </div>
         <PageHeader
@@ -187,7 +189,7 @@ export default function PartyDashboardPage() {
                 variant="accent"
                 size="md"
               >
-                + Add expense
+                {t("actions.addExpense")}
               </ButtonLink>
             </>
           }
@@ -197,13 +199,13 @@ export default function PartyDashboardPage() {
       {/* MEMBERS */}
       <section>
         <SectionHeader
-          title={`Members (${members.length})`}
-          meta={party.type === "private" ? "PRIVATE" : "PUBLIC"}
+          title={`${t("groups.detail.membersTitle")} (${members.length})`}
+          meta={party.type === "private" ? t("groups.detail.metaPrivate") : t("groups.detail.metaPublic")}
         />
         <Card padding={0}>
           {members.length === 0 ? (
             <div style={{ padding: 18, fontSize: 13, color: "var(--color-ink-3)" }}>
-              No members loaded yet.
+              {t("groups.detail.noMembers")}
             </div>
           ) : (
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
@@ -239,16 +241,16 @@ export default function PartyDashboardPage() {
             <form onSubmit={handleInvite} style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginTop: 12 }}>
               <div style={{ flex: "1 1 200px", minWidth: 180 }}>
                 <TextField
-                  label="Invite a member"
-                  placeholder="6-char invite code"
+                  label={t("groups.detail.inviteLabel")}
+                  placeholder={t("groups.detail.invitePlaceholder")}
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                   maxLength={12}
-                  helper="Ask the person for the invite code on their Settings page."
+                  helper={t("groups.detail.inviteHelper")}
                 />
               </div>
               <Button type="submit" variant="primary" size="md" disabled={inviting || !inviteCode.trim()}>
-                {inviting ? "Adding…" : "Invite"}
+                {inviting ? t("actions.adding") : t("actions.invite")}
               </Button>
             </form>
             {inviteMsg && (
@@ -262,7 +264,7 @@ export default function PartyDashboardPage() {
 
       {/* BUDGET — keeps existing MonthlyBudgetCard component intact */}
       <section>
-        <SectionHeader title="Monthly budget" meta={monthlyBudget ? "SET" : "NOT SET"} />
+        <SectionHeader title={t("groups.detail.monthlyBudget")} meta={monthlyBudget ? t("groups.detail.budgetSet") : t("groups.detail.budgetNotSet")} />
         <MonthlyBudgetCard
           groupId={party.partyId}
           budget={monthlyBudget}
@@ -278,14 +280,14 @@ export default function PartyDashboardPage() {
       {trips.length > 0 && (
         <section>
           <SectionHeader
-            title="Trips in this group"
-            meta={`${trips.length} TRIP${trips.length === 1 ? "" : "S"}`}
+            title={t("groups.detail.tripsTitle")}
+            meta={`${trips.length} ${t("trips.tripsSuffix").replace("{s}", trips.length === 1 ? "" : "S")}`}
             action={
               <Link
                 href="/trips"
                 style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "underline", textUnderlineOffset: 3 }}
               >
-                See all
+                {t("common.seeAll")}
               </Link>
             }
           />
@@ -331,20 +333,20 @@ export default function PartyDashboardPage() {
       {records.length === 0 ? (
         <EmptyState
           icon="🧾"
-          title="No expenses yet"
-          description="Scan a receipt or add your first expense to this group."
+          title={t("groups.detail.emptyTitle")}
+          description={t("groups.detail.emptyDesc")}
           ctaHref={`/scan?partyId=${encodeURIComponent(party.partyId)}`}
-          ctaLabel="Add the first expense"
+          ctaLabel={t("actions.addFirstExpense")}
         />
       ) : (
         <>
           <section>
-            <SectionHeader title="At a glance" />
+            <SectionHeader title={t("groups.detail.glance")} />
             <DashboardCards records={confirmed} baseCurrency={baseCurrency} />
           </section>
 
           <section>
-            <SectionHeader title="Breakdown" />
+            <SectionHeader title={t("groups.detail.breakdown")} />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
               <CategoryPieChart records={confirmed} />
               <UserBarChart records={confirmed} />
@@ -352,14 +354,14 @@ export default function PartyDashboardPage() {
           </section>
 
           <section>
-            <SectionHeader title="Daily trend" />
+            <SectionHeader title={t("groups.detail.dailyTrend")} />
             <SpendingLineChart records={confirmed} />
           </section>
 
           <section>
             <SectionHeader
-              title="Recent expenses"
-              meta={`SHOWING ${Math.min(records.length, 20)} OF ${records.length}`}
+              title={t("groups.detail.recentExpenses")}
+              meta={t("groups.detail.showingOfFmt", { shown: Math.min(records.length, 20), total: records.length })}
             />
             <RecordsTable records={records.slice(0, 20)} baseCurrency={baseCurrency} />
           </section>
@@ -374,15 +376,15 @@ export default function PartyDashboardPage() {
             borderTop: "1px solid var(--color-line-soft)",
           }}
         >
-          <Badge tone="amber" size="sm">DANGER ZONE</Badge>
+          <Badge tone="amber" size="sm">{t("groups.detail.dangerZone")}</Badge>
           <h3 style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 600, margin: "10px 0 6px" }}>
-            Delete this group
+            {t("groups.detail.deleteTitle")}
           </h3>
           <p style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.5, margin: "0 0 12px", maxWidth: "60ch" }}>
-            Removes membership from Supabase. Expenses stay in Notion but will reference a deleted group ID.
+            {t("groups.detail.deleteDesc")}
           </p>
           <Button type="button" variant="danger" size="md" onClick={handleDelete} disabled={deleting}>
-            {deleting ? "Deleting…" : "Delete group"}
+            {deleting ? t("common.deleting") : t("groups.detail.deleteButton")}
           </Button>
         </section>
       )}

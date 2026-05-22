@@ -30,6 +30,7 @@ import {
   SectionHeader,
   StatCard,
 } from "@/components/ui";
+import { useLanguage, type TranslateFn } from "@/lib/i18n";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -48,33 +49,33 @@ function daysBetween(a: string, b: string): number {
   return Math.round((db - da) / DAY_MS);
 }
 
-function formatRange(start?: string, end?: string): string {
+function formatRange(start: string | undefined, end: string | undefined, t: TranslateFn): string {
   if (start && end) return `${start} → ${end}`;
   if (start) return `${start} →`;
   if (end) return `→ ${end}`;
-  return "Dates not set";
+  return t("trips.datesNotSet");
 }
 
 function formatAmount(value: number): string {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function tripDayLabel(trip: Trip): { primary: string; secondary: string } {
+function tripDayLabel(trip: Trip, t: TranslateFn): { primary: string; secondary: string } {
   const today = isoToday();
   if (trip.startDate && today < trip.startDate) {
     const n = daysBetween(today, trip.startDate);
-    return { primary: `In ${n} d`, secondary: "until trip" };
+    return { primary: t("tripDetail.dayInFmt", { n }), secondary: t("tripDetail.dayLabelUntil") };
   }
   if (trip.endDate && today > trip.endDate) {
     const n = daysBetween(trip.endDate, today);
-    return { primary: `${n} d ago`, secondary: "trip ended" };
+    return { primary: t("tripDetail.dayAgoFmt", { n }), secondary: t("tripDetail.dayLabelEnded") };
   }
   if (trip.startDate && trip.endDate) {
     const totalDays = daysBetween(trip.startDate, trip.endDate) + 1;
     const dayIndex = daysBetween(trip.startDate, today) + 1;
-    return { primary: `Day ${dayIndex}/${totalDays}`, secondary: "in progress" };
+    return { primary: t("tripDetail.dayProgressFmt", { index: dayIndex, total: totalDays }), secondary: t("tripDetail.dayLabelInProgress") };
   }
-  return { primary: "—", secondary: "no dates" };
+  return { primary: "—", secondary: t("tripDetail.dayLabelNoDates") };
 }
 
 export default function TripDashboardPage() {
@@ -82,6 +83,7 @@ export default function TripDashboardPage() {
   const tripId = params?.tripId;
   const router = useRouter();
   const session = useSession();
+  const { t } = useLanguage();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [records, setRecords] = useState<ExpenseRecord[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -128,7 +130,7 @@ export default function TripDashboardPage() {
   async function handleDelete() {
     if (!session || !trip) return;
     const ok = confirm(
-      `Delete trip "${trip.tripName}"? The trip will be archived in Notion (restorable from Notion if needed). Expenses are not deleted and will reference the archived trip ID.`,
+      t("trips.deleteConfirmFmt", { name: trip.tripName }),
     );
     if (!ok) return;
     setDeleting(true);
@@ -183,11 +185,11 @@ export default function TripDashboardPage() {
     [records, today],
   );
 
-  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
-  if (error) return <Alert tone="accent" title="Couldn't load this trip.">{error}</Alert>;
-  if (!trip) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Trip not found.</div>;
+  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("states.loading")}</div>;
+  if (error) return <Alert tone="accent" title={t("errors.couldntLoadTrip")}>{error}</Alert>;
+  if (!trip) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("common.notFound")}</div>;
 
-  const dayLabel = tripDayLabel(trip);
+  const dayLabel = tripDayLabel(trip, t);
   const scanHref = `/scan?tripId=${encodeURIComponent(trip.tripId)}`;
   const budgetUsedFrac = stats.budgetAmount && stats.budgetAmount > 0 ? stats.total / stats.budgetAmount : null;
   const budgetStatus =
@@ -202,7 +204,7 @@ export default function TripDashboardPage() {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <Link href="/trips" style={{ fontSize: 12, color: "var(--color-ink-2)", textDecoration: "none" }}>
-          ← Trips
+          {t("tripDetail.backToTrips")}
         </Link>
         <RefreshButton onClick={trigger} refreshing={refreshing} />
       </div>
@@ -232,7 +234,7 @@ export default function TripDashboardPage() {
         />
         <div style={{ position: "relative" }}>
           <div className="fxt-mono" style={{ fontSize: 11, letterSpacing: "0.12em", opacity: 0.85 }}>
-            {trip.destination ? trip.destination.toUpperCase() : "TRIP"}
+            {trip.destination ? trip.destination.toUpperCase() : ""}
           </div>
           <h1
             className="fxt-display"
@@ -247,9 +249,9 @@ export default function TripDashboardPage() {
             {trip.tripName}
           </h1>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", fontSize: 13, opacity: 0.95 }}>
-            <span>{formatRange(trip.startDate, trip.endDate)}</span>
+            <span>{formatRange(trip.startDate, trip.endDate, t)}</span>
             <span aria-hidden style={{ opacity: 0.5 }}>·</span>
-            <span>Base <strong className="fxt-mono">{trip.baseCurrency}</strong></span>
+            <span>{t("tripDetail.base")} <strong className="fxt-mono">{trip.baseCurrency}</strong></span>
           </div>
           <div
             style={{
@@ -287,9 +289,9 @@ export default function TripDashboardPage() {
         if (!summary.hasBudget) return null;
         const cur = summary.budgetCurrency || trip.baseCurrency;
         const paceLabel =
-          summary.pace === "over" ? "Over pace"
-          : summary.pace === "under" ? "Under pace"
-          : summary.pace === "on_track" ? "On pace"
+          summary.pace === "over" ? t("tripDetail.paceOver")
+          : summary.pace === "under" ? t("tripDetail.paceUnder")
+          : summary.pace === "on_track" ? t("tripDetail.paceOn")
           : "—";
         const paceTone: "amber" | "sage" | "neutral" =
           summary.pace === "over" ? "amber"
@@ -298,11 +300,11 @@ export default function TripDashboardPage() {
         return (
           <Card padding={16} tone="soft">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
-              <PaceCell label="Avg / day" value={summary.avgPerDay != null ? `${formatAmount(summary.avgPerDay)} ${cur}` : "—"} />
-              <PaceCell label="Safe daily" value={summary.safeDaily != null ? `${formatAmount(summary.safeDaily)} ${cur}` : "—"} />
-              <PaceCell label="Days left" value={String(summary.remainingDays ?? "—")} />
+              <PaceCell label={t("tripDetail.paceAvgPerDay")} value={summary.avgPerDay != null ? `${formatAmount(summary.avgPerDay)} ${cur}` : "—"} />
+              <PaceCell label={t("tripDetail.paceSafeDaily")} value={summary.safeDaily != null ? `${formatAmount(summary.safeDaily)} ${cur}` : "—"} />
+              <PaceCell label={t("tripDetail.paceDaysLeft")} value={String(summary.remainingDays ?? "—")} />
               <div>
-                <div className="fxt-eyebrow">Pace</div>
+                <div className="fxt-eyebrow">{t("tripDetail.pace")}</div>
                 <div style={{ marginTop: 4 }}>
                   <Badge tone={paceTone}>{paceLabel}</Badge>
                 </div>
@@ -315,29 +317,29 @@ export default function TripDashboardPage() {
       {/* STAT CARDS */}
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
         <StatCard
-          label="Today"
+          label={t("tripDetail.statToday")}
           value={`${formatAmount(stats.todayTotal)} ${trip.baseCurrency}`}
-          hint={`${stats.todayCount} expense${stats.todayCount === 1 ? "" : "s"}`}
+          hint={t("tripDetail.expensesFmt", { n: stats.todayCount, s: stats.todayCount === 1 ? "" : "s" })}
         />
         <StatCard
-          label="Trip total"
+          label={t("tripDetail.statTripTotal")}
           value={`${formatAmount(stats.total)} ${trip.baseCurrency}`}
-          hint={`${records.length} expense${records.length === 1 ? "" : "s"}`}
+          hint={t("tripDetail.expensesFmt", { n: records.length, s: records.length === 1 ? "" : "s" })}
         />
         {stats.budgetAmount != null && stats.budgetCurrency ? (
           <StatCard
-            label="Budget"
+            label={t("tripDetail.statBudget")}
             value={`${stats.budgetPct?.toFixed(0) ?? "—"}%`}
             hint={
               stats.budgetRemaining != null
-                ? `${formatAmount(stats.budgetRemaining)} ${stats.budgetCurrency} left`
+                ? t("tripDetail.budgetLeftFmt", { amount: formatAmount(stats.budgetRemaining), cur: stats.budgetCurrency })
                 : undefined
             }
             progress={budgetUsedFrac ?? undefined}
             tone={budgetStatus === "over" ? "amber" : budgetStatus === "approaching" ? "amber" : "surface"}
           />
         ) : (
-          <StatCard label="Budget" value="—" hint="not set" />
+          <StatCard label={t("tripDetail.statBudget")} value="—" hint={t("tripDetail.statBudgetNotSet")} />
         )}
         <StatCard label={dayLabel.secondary} value={dayLabel.primary} />
       </section>
@@ -345,39 +347,39 @@ export default function TripDashboardPage() {
       {/* ACTIONS */}
       <section style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <ButtonLink href={scanHref} variant="accent" size="lg" full={false}>
-          📷 Add expense
+          {t("tripDetail.actionAddExpense")}
         </ButtonLink>
         <ButtonLink
           href={`/trips/${encodeURIComponent(trip.tripId)}/settlement`}
           variant="secondary"
           size="lg"
         >
-          💱 Settlement
+          {t("tripDetail.actionSettlement")}
         </ButtonLink>
         <ButtonLink
           href={`/trips/${encodeURIComponent(trip.tripId)}/report`}
           variant="secondary"
           size="lg"
         >
-          📊 Report
+          {t("tripDetail.actionReport")}
         </ButtonLink>
       </section>
 
       {records.length === 0 ? (
         <EmptyState
           icon="🧾"
-          title="No expenses yet on this trip"
-          description="Scan a receipt or add your first expense to start tracking this trip."
+          title={t("tripDetail.emptyTitle")}
+          description={t("tripDetail.emptyDesc")}
           ctaHref={scanHref}
-          ctaLabel="Add the first expense"
+          ctaLabel={t("actions.addFirstExpense")}
         />
       ) : (
         <>
           <section>
-            <SectionHeader title="Today" meta={`${todayRecords.length} EXPENSE${todayRecords.length === 1 ? "" : "S"}`} />
+            <SectionHeader title={t("tripDetail.sectionToday")} meta={`${todayRecords.length} ${todayRecords.length === 1 ? "EXPENSE" : "EXPENSES"}`} />
             {todayRecords.length === 0 ? (
               <Card padding={16} tone="soft">
-                <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>Nothing logged today yet.</div>
+                <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>{t("tripDetail.todayEmpty")}</div>
               </Card>
             ) : (
               <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -389,13 +391,13 @@ export default function TripDashboardPage() {
           {recentRecords.length > 0 && (
             <section>
               <SectionHeader
-                title="Recent"
+                title={t("tripDetail.sectionRecent")}
                 action={
                   <Link
                     href={`/history?partyId=${encodeURIComponent(trip.familyId)}`}
                     style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "underline", textUnderlineOffset: 3 }}
                   >
-                    See all
+                    {t("common.seeAll")}
                   </Link>
                 }
               />
@@ -406,7 +408,7 @@ export default function TripDashboardPage() {
           )}
 
           <section>
-            <SectionHeader title="Breakdown" />
+            <SectionHeader title={t("tripDetail.sectionBreakdown")} />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
               <CategoryPieChart records={onlyConfirmed(records)} />
               <UserBarChart records={onlyConfirmed(records)} />
@@ -414,7 +416,7 @@ export default function TripDashboardPage() {
           </section>
 
           <section>
-            <SectionHeader title="Daily trend" />
+            <SectionHeader title={t("tripDetail.sectionDailyTrend")} />
             <SpendingLineChart records={expandForDailyAnalytics(onlyConfirmed(records))} />
           </section>
         </>
@@ -428,15 +430,15 @@ export default function TripDashboardPage() {
           borderTop: "1px solid var(--color-line-soft)",
         }}
       >
-        <Badge tone="amber" size="sm">DANGER ZONE</Badge>
+        <Badge tone="amber" size="sm">{t("tripDetail.dangerZone")}</Badge>
         <h3 style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 600, margin: "10px 0 6px" }}>
-          Delete this trip
+          {t("tripDetail.deleteTitle")}
         </h3>
         <p style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.5, margin: "0 0 12px", maxWidth: "60ch" }}>
-          Archives the trip in Notion. Expenses stay in the database but will reference a deleted trip ID.
+          {t("tripDetail.deleteDesc")}
         </p>
         <Button type="button" variant="danger" size="md" onClick={handleDelete} disabled={deleting}>
-          {deleting ? "Deleting…" : "Delete trip"}
+          {deleting ? t("common.deleting") : t("tripDetail.deleteButton")}
         </Button>
       </section>
     </div>

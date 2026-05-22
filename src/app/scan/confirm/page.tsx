@@ -30,6 +30,7 @@ import {
   SectionHeader,
   Badge,
 } from "@/components/ui";
+import { useLanguage, categoryLabel, paymentMethodLabel } from "@/lib/i18n";
 
 // ---------- Types & form state ----------
 
@@ -241,6 +242,7 @@ function ConfirmFormBody({
   initialTripId: string;
 }) {
   const router = useRouter();
+  const { t, language } = useLanguage();
   const [form, setForm] = useState<FormState | null>(() =>
     buildInitialForm(session, isManual, initialGroupId, initialTripId),
   );
@@ -473,7 +475,7 @@ function ConfirmFormBody({
       nextSplitType = "equal_split";
     } else if (pendingHints.splitType === "custom_amount") {
       nextSplitType = "equal_split";
-      guidance.push("Custom split amounts mentioned — review participant shares");
+      guidance.push(t("confirm.customSplitGuidance"));
     }
 
     let nextParticipantIds = form.participantIds;
@@ -505,7 +507,7 @@ function ConfirmFormBody({
         : f,
     );
     setPendingHints(null);
-  }, [form, pendingHints, knownUsers, membersLoaded, session]);
+  }, [form, pendingHints, knownUsers, membersLoaded, session, t]);
 
   // Default split based on group size: personal (1 member) → no_split, else equal_split.
   useEffect(() => {
@@ -538,26 +540,26 @@ function ConfirmFormBody({
     e.preventDefault();
     if (!form) return;
     if (!form.groupId) {
-      setError("Pick a group for this expense");
+      setError(t("confirm.errorPickGroup"));
       return;
     }
     const amt = Number(form.amount);
     if (!Number.isFinite(amt) || amt <= 0) {
-      setError("Amount must be a positive number");
+      setError(t("confirm.errorAmount"));
       return;
     }
     if (form.expenseType === "spread_across_days") {
       if (!form.spreadStartDate || !form.spreadEndDate) {
-        setError("Pick a start and end date for the spread");
+        setError(t("confirm.errorPickStartEnd"));
         return;
       }
       if (form.spreadEndDate < form.spreadStartDate) {
-        setError("Spread end date must be on or after the start date");
+        setError(t("confirm.errorEndAfterStart"));
         return;
       }
     }
     if (form.splitType === "equal_split" && form.participantIds.length === 0) {
-      setError("Pick at least one participant for an equal split");
+      setError(t("confirm.errorParticipantsEqual"));
       return;
     }
     if (form.splitType === "custom_amount") {
@@ -566,7 +568,7 @@ function ConfirmFormBody({
         0,
       );
       if (form.participantIds.length === 0) {
-        setError("Pick at least one participant for a custom split");
+        setError(t("confirm.errorParticipantsCustom"));
         return;
       }
       if (Math.abs(sum - amt) > 0.5) {
@@ -661,39 +663,39 @@ function ConfirmFormBody({
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720, margin: "0 auto" }}>
       <header style={{ marginBottom: 4 }}>
         <div className="fxt-eyebrow" style={{ marginBottom: 8 }}>
-          {isManual ? "MANUAL ADD" : form.sourceType === "smart_add" ? "REVIEW SMART ADD" : "REVIEW AI EXTRACTION"}
+          {isManual ? t("confirm.eyebrowManual") : form.sourceType === "smart_add" ? t("confirm.eyebrowSmart") : t("confirm.eyebrowAi")}
         </div>
         <h1
           className="fxt-display"
           style={{ fontSize: "clamp(28px, 4.6vw, 36px)", margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
         >
-          {isManual ? "Add this expense" : "Confirm and save"}
+          {isManual ? t("confirm.titleManual") : t("confirm.titleConfirm")}
         </h1>
         <p style={{ color: "var(--color-ink-2)", fontSize: 13, margin: "8px 0 0", maxWidth: "56ch" }}>
-          Nothing is saved until you tap <strong style={{ color: "var(--color-ink)" }}>Save</strong>. Tweak anything that looks wrong.
+          {t("confirm.subtitle")}
         </p>
       </header>
 
       {form.aiConfidence != null && (
         lowConfidence ? (
-          <Alert tone="amber" title={`AI confidence: ${(form.aiConfidence * 100).toFixed(0)}%`}>
-            Low confidence — please review carefully before saving.
+          <Alert tone="amber" title={t("confirm.aiConfidenceFmt", { pct: (form.aiConfidence * 100).toFixed(0) })}>
+            {t("confirm.lowConfidence")}
           </Alert>
         ) : (
-          <Alert tone="sage" title={`AI confidence: ${(form.aiConfidence * 100).toFixed(0)}%`}>
-            Looks good. Quick review and you&apos;re done.
+          <Alert tone="sage" title={t("confirm.aiConfidenceFmt", { pct: (form.aiConfidence * 100).toFixed(0) })}>
+            {t("confirm.goodConfidence")}
           </Alert>
         )
       )}
 
       {missingFields.length > 0 && (
-        <Alert tone="amber" title="A few fields need your input.">
-          AI couldn&apos;t fill: <strong>{missingFields.join(", ")}</strong>. Please complete before saving.
+        <Alert tone="amber" title={t("confirm.missingTitle")}>
+          {t("confirm.missingDescFmt", { fields: missingFields.join(", ") })}
         </Alert>
       )}
 
       {duplicates.length > 0 && savedRedirect && (
-        <Alert tone="amber" title="Saved — but this looks similar to an existing expense.">
+        <Alert tone="amber" title={t("confirm.duplicateTitle")}>
           <ul style={{ margin: "6px 0 10px", paddingLeft: 18, lineHeight: 1.5 }}>
             {duplicates.slice(0, 3).map((d) => (
               <li key={d.id}>
@@ -702,7 +704,7 @@ function ConfirmFormBody({
             ))}
           </ul>
           <Button type="button" variant="secondary" size="sm" onClick={() => router.push(savedRedirect)}>
-            Got it, continue
+            {t("confirm.duplicateContinue")}
           </Button>
         </Alert>
       )}
@@ -720,14 +722,14 @@ function ConfirmFormBody({
         </Card>
       )}
 
-      {error && <Alert tone="accent" title="Couldn't save that.">{error}</Alert>}
+      {error && <Alert tone="accent" title={t("confirm.errorSave")}>{error}</Alert>}
 
       {/* ESSENTIALS */}
       <section>
-        <SectionHeader title="Essentials" />
+        <SectionHeader title={t("confirm.sectionEssentials")} />
         <Card padding={18}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Field label="Group">
+            <Field label={t("confirm.fieldGroup")}>
               <NativeSelect
                 value={form.groupId}
                 onChange={(e) => setGroup(e.target.value)}
@@ -743,7 +745,7 @@ function ConfirmFormBody({
             </Field>
 
             {tripsForGroup.length > 0 && (
-              <Field label="Trip (optional)">
+              <Field label={t("confirm.fieldTrip")}>
                 <NativeSelect
                   value={form.tripId}
                   onChange={(e) => update("tripId", e.target.value)}
@@ -760,21 +762,21 @@ function ConfirmFormBody({
             )}
 
             <TextField
-              label="Merchant"
+              label={t("confirm.fieldMerchant")}
               value={form.merchant}
               onChange={(e) => update("merchant", e.target.value)}
-              placeholder="e.g. Inoda Coffee"
+              placeholder={t("confirm.fieldMerchantPlaceholder")}
             />
 
             <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 10 }}>
               <TextField
-                label="Amount"
+                label={t("confirm.fieldAmount")}
                 inputMode="decimal"
                 value={form.amount}
                 onChange={(e) => update("amount", e.target.value)}
                 required
               />
-              <Field label="Currency">
+              <Field label={t("confirm.fieldCurrency")}>
                 <NativeSelect value={form.currency} onChange={(e) => update("currency", e.target.value)}>
                   {CURRENCIES.map((c) => (
                     <option key={c} value={c}>
@@ -785,7 +787,7 @@ function ConfirmFormBody({
               </Field>
             </div>
 
-            <Field label="Date">
+            <Field label={t("confirm.fieldDate")}>
               <input
                 className="fxt-focus"
                 type="date"
@@ -800,11 +802,11 @@ function ConfirmFormBody({
 
       {/* CATEGORY & PAYMENT */}
       <section>
-        <SectionHeader title="Category & payment" />
+        <SectionHeader title={t("confirm.sectionCategoryPayment")} />
         <Card padding={18}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Field label="Category">
+              <Field label={t("confirm.fieldCategory")}>
                 <NativeSelect
                   value={form.category}
                   onChange={(e) => {
@@ -815,13 +817,13 @@ function ConfirmFormBody({
                 >
                   {EXPENSE_CATEGORIES.map((c) => (
                     <option key={c} value={c}>
-                      {c}
+                      {categoryLabel(c, language)}
                     </option>
                   ))}
                 </NativeSelect>
               </Field>
 
-              <Field label="Payment method">
+              <Field label={t("confirm.fieldPaymentMethod")}>
                 <NativeSelect
                   value={form.paymentMethod}
                   onChange={(e) => {
@@ -835,11 +837,11 @@ function ConfirmFormBody({
                 >
                   {PAYMENT_METHODS.map((p) => (
                     <option key={p} value={p}>
-                      {p}
+                      {paymentMethodLabel(p, language)}
                     </option>
                   ))}
                   {customMethods.length > 0 && (
-                    <optgroup label="Your custom methods">
+                    <optgroup label={t("confirm.yourCustomMethods")}>
                       {customMethods.map((m) => (
                         <option key={m} value={m}>
                           {m}
@@ -852,7 +854,7 @@ function ConfirmFormBody({
                     form.paymentMethod && (
                       <option value={form.paymentMethod}>{form.paymentMethod}</option>
                     )}
-                  <option value="__add__">+ Add custom method…</option>
+                  <option value="__add__">{t("confirm.addCustomMethod")}</option>
                 </NativeSelect>
               </Field>
             </div>
@@ -862,8 +864,8 @@ function ConfirmFormBody({
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
                   <div style={{ flex: "1 1 200px", minWidth: 180 }}>
                     <TextField
-                      label="New method name"
-                      placeholder="e.g. Suica, Wise, HSBC Visa"
+                      label={t("confirm.newMethodLabel")}
+                      placeholder={t("confirm.newMethodPlaceholder")}
                       value={newMethodName}
                       maxLength={40}
                       onChange={(e) => setNewMethodName(e.target.value)}
@@ -876,7 +878,7 @@ function ConfirmFormBody({
                     onClick={handleAddMethod}
                     disabled={addingMethod || !newMethodName.trim()}
                   >
-                    {addingMethod ? "Adding…" : "Add"}
+                    {addingMethod ? t("confirm.addingMethod") : t("confirm.addMethod")}
                   </Button>
                   <Button
                     type="button"
@@ -923,7 +925,7 @@ function ConfirmFormBody({
                       onClick={handleSaveRule}
                       disabled={savingRule}
                     >
-                      {savingRule ? "Saving…" : "Save rule"}
+                      {savingRule ? t("confirm.savingRule") : t("confirm.saveRule")}
                     </Button>
                   </div>
                 </Card>
@@ -936,12 +938,12 @@ function ConfirmFormBody({
       {/* SPLIT */}
       <section>
         <SectionHeader
-          title="Split"
-          meta={form.splitType === "no_split" ? "PERSONAL" : form.splitType === "equal_split" ? "EQUAL" : "CUSTOM"}
+          title={t("confirm.splitTitle")}
+          meta={form.splitType === "no_split" ? t("confirm.metaPersonal") : form.splitType === "equal_split" ? t("confirm.metaEqual") : t("confirm.metaCustom")}
         />
         <Card padding={18}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <Field label="How is it split?">
+            <Field label={t("confirm.splitQuestion")}>
               <NativeSelect
                 value={form.splitType}
                 onChange={(e) => {
@@ -950,8 +952,8 @@ function ConfirmFormBody({
                 }}
               >
                 <option value="no_split">No split (personal)</option>
-                <option value="equal_split">Equal split</option>
-                <option value="custom_amount">Custom amount</option>
+                <option value="equal_split">{t("confirm.splitEqual")}</option>
+                <option value="custom_amount">{t("confirm.splitCustom")}</option>
               </NativeSelect>
             </Field>
 
@@ -1065,13 +1067,13 @@ function ConfirmFormBody({
         </summary>
         <div style={{ padding: "0 18px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
           <TextField
-            label="Country"
+            label={t("confirm.fieldCountry")}
             value={form.country}
             onChange={(e) => update("country", e.target.value)}
-            placeholder="e.g. UK"
+            placeholder={t("confirm.fieldCountryPlaceholder")}
           />
 
-          <Field label="Expense type">
+          <Field label={t("confirm.fieldExpenseType")}>
             <NativeSelect
               value={form.expenseType}
               onChange={(e) => update("expenseType", e.target.value as ExpenseType)}
@@ -1083,7 +1085,7 @@ function ConfirmFormBody({
 
           {form.expenseType === "spread_across_days" && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Field label="Start">
+              <Field label={t("confirm.fieldStart")}>
                 <input
                   className="fxt-focus"
                   type="date"
@@ -1092,7 +1094,7 @@ function ConfirmFormBody({
                   style={inputBaseStyle()}
                 />
               </Field>
-              <Field label="End">
+              <Field label={t("confirm.fieldEnd")}>
                 <input
                   className="fxt-focus"
                   type="date"
@@ -1128,12 +1130,12 @@ function ConfirmFormBody({
           )}
 
           <TextField
-            label="Payer name"
+            label={t("confirm.fieldPayerName")}
             value={form.payerName}
             onChange={(e) => update("payerName", e.target.value)}
           />
 
-          <Field label="Notes">
+          <Field label={t("confirm.fieldNotes")}>
             <textarea
               className="fxt-focus"
               rows={2}
@@ -1149,7 +1151,7 @@ function ConfirmFormBody({
 
       <BottomActionBar>
         <Button type="submit" disabled={submitting} variant="accent" size="lg" full>
-          {submitting ? "Saving…" : "Save expense"}
+          {submitting ? t("confirm.submitting") : t("confirm.submit")}
         </Button>
         <Button type="button" onClick={() => router.back()} variant="secondary" size="lg">
           Cancel
@@ -1168,6 +1170,7 @@ function ItemsSection({
   form: FormState;
   setForm: React.Dispatch<React.SetStateAction<FormState | null>>;
 }) {
+  const { t, language } = useLanguage();
   function updateItem(id: string, patch: Partial<FormItem>) {
     setForm((f) => (f ? { ...f, items: f.items.map((it) => (it.id === id ? { ...it, ...patch } : it)) } : f));
   }
@@ -1220,7 +1223,7 @@ function ItemsSection({
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                   <input
                     className="fxt-focus"
-                    placeholder="Item name"
+                    placeholder={t("confirm.itemName")}
                     value={it.name}
                     onChange={(e) => updateItem(it.id, { name: e.target.value })}
                     style={{ ...inputBaseStyle(), flex: 1 }}
@@ -1228,7 +1231,7 @@ function ItemsSection({
                   <button
                     type="button"
                     onClick={() => removeItem(it.id)}
-                    aria-label="Remove item"
+                    aria-label={t("confirm.itemRemove")}
                     style={{
                       background: "transparent",
                       border: 0,
@@ -1242,7 +1245,7 @@ function ItemsSection({
                   </button>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                  <SmallField label="Qty">
+                  <SmallField label={t("confirm.itemQty")}>
                     <input
                       className="fxt-focus"
                       inputMode="decimal"
@@ -1251,7 +1254,7 @@ function ItemsSection({
                       style={inputBaseStyle()}
                     />
                   </SmallField>
-                  <SmallField label="Unit">
+                  <SmallField label={t("confirm.itemUnit")}>
                     <input
                       className="fxt-focus"
                       inputMode="decimal"
@@ -1260,7 +1263,7 @@ function ItemsSection({
                       style={inputBaseStyle()}
                     />
                   </SmallField>
-                  <SmallField label="Total">
+                  <SmallField label={t("confirm.itemTotal")}>
                     <input
                       className="fxt-focus"
                       inputMode="decimal"
@@ -1271,7 +1274,7 @@ function ItemsSection({
                     />
                   </SmallField>
                 </div>
-                <SmallField label="Item category">
+                <SmallField label={t("confirm.itemCategory")}>
                   <NativeSelect
                     value={it.category}
                     onChange={(e) => updateItem(it.id, { category: e.target.value as ExpenseCategory | "" })}
@@ -1279,7 +1282,7 @@ function ItemsSection({
                     <option value="">— Same as receipt —</option>
                     {EXPENSE_CATEGORIES.map((c) => (
                       <option key={c} value={c}>
-                        {c}
+                        {categoryLabel(c, language)}
                       </option>
                     ))}
                   </NativeSelect>

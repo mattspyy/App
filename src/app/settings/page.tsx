@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { clearSession, setSession, useSession } from "@/lib/session";
 import { CURRENCIES } from "@/lib/types";
+import { useLanguage, SUPPORTED_LANGUAGES, type Language } from "@/lib/i18n";
 import { PageHeader, Card, Button, SectionHeader, Badge } from "@/components/ui";
 
 const ADMIN_USERNAMES = (process.env.NEXT_PUBLIC_ADMIN_USERNAMES || "")
@@ -14,8 +15,10 @@ const ADMIN_USERNAMES = (process.env.NEXT_PUBLIC_ADMIN_USERNAMES || "")
 export default function SettingsPage() {
   const router = useRouter();
   const session = useSession();
+  const { t, language, setLanguage } = useLanguage();
   const [baseCurrency, setBaseCurrency] = useState<string>(() => session?.baseCurrency ?? "HKD");
   const [savedTick, setSavedTick] = useState(false);
+  const [langSavedTick, setLangSavedTick] = useState(false);
 
   useEffect(() => {
     if (!session) router.replace("/login");
@@ -26,7 +29,7 @@ export default function SettingsPage() {
     [session],
   );
 
-  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
+  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("common.loading")}</div>;
 
   function handleSave() {
     if (!session) return;
@@ -40,35 +43,91 @@ export default function SettingsPage() {
     router.replace("/login");
   }
 
+  function handleLanguageChange(value: Language) {
+    setLanguage(value);
+    setLangSavedTick(true);
+    setTimeout(() => setLangSavedTick(false), 1400);
+  }
+
   const dirty = baseCurrency !== session.baseCurrency;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 560, margin: "0 auto" }}>
       <PageHeader
-        eyebrow="YOUR ACCOUNT"
-        title={<>Settings</>}
-        description="A handful of preferences. Nothing to overthink."
+        eyebrow={t("settings.eyebrow")}
+        title={<>{t("settings.title")}</>}
+        description={t("settings.description")}
       />
 
       <section>
-        <SectionHeader title="Account" />
+        <SectionHeader title={t("settings.account")} />
         <Card padding={18}>
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-            <Row label="Username" value={session.username} />
+            <Row label={t("settings.usernameLabel")} value={session.username} />
             <Row
-              label="Invite code"
+              label={t("settings.inviteCodeLabel")}
               value={<code className="fxt-mono" style={codeStyle()}>{session.inviteCode}</code>}
-              hint="Share this with a private-group admin to be added as a member."
+              hint={t("settings.inviteCodeHint")}
             />
           </ul>
         </Card>
       </section>
 
       <section>
-        <SectionHeader title="Display currency" meta={dirty ? "UNSAVED" : undefined} />
+        <SectionHeader title={t("settings.language")} meta={t("settings.languageMeta")} />
         <Card padding={18}>
           <p style={{ fontSize: 13, color: "var(--color-ink-2)", margin: "0 0 12px", lineHeight: 1.5 }}>
-            Dashboards convert other currencies to this one. Stored locally; doesn&apos;t change anyone else&apos;s view.
+            {t("settings.languageDesc")}
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {SUPPORTED_LANGUAGES.map((opt) => {
+              const active = opt.code === language;
+              return (
+                <label
+                  key={opt.code}
+                  className="fxt-focus"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 14px",
+                    borderRadius: "var(--radius-md)",
+                    border: `1px solid ${active ? "color-mix(in oklch, var(--color-accent) 35%, var(--color-line))" : "var(--color-line)"}`,
+                    background: active ? "var(--color-accent-soft)" : "var(--color-surface)",
+                    cursor: "pointer",
+                    fontSize: 14,
+                    color: "var(--color-ink)",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="fxt-language"
+                    value={opt.code}
+                    checked={active}
+                    onChange={() => handleLanguageChange(opt.code)}
+                    style={{ accentColor: "var(--color-accent)" }}
+                  />
+                  <span style={{ fontFamily: "var(--font-serif)", fontSize: 15 }}>{opt.label}</span>
+                  <span className="fxt-mono" style={{ marginLeft: "auto", fontSize: 11, color: "var(--color-ink-3)" }}>
+                    {opt.code}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {langSavedTick && (
+            <div style={{ marginTop: 12 }}>
+              <Badge tone="sage" size="sm">{t("common.saved")}</Badge>
+            </div>
+          )}
+        </Card>
+      </section>
+
+      <section>
+        <SectionHeader title={t("settings.displayCurrency")} meta={dirty ? t("common.unsaved") : undefined} />
+        <Card padding={18}>
+          <p style={{ fontSize: 13, color: "var(--color-ink-2)", margin: "0 0 12px", lineHeight: 1.5 }}>
+            {t("settings.displayCurrencyDesc")}
           </p>
           <label
             style={{
@@ -82,7 +141,7 @@ export default function SettingsPage() {
             }}
             htmlFor="settings-currency"
           >
-            Base currency
+            {t("settings.baseCurrency")}
           </label>
           <div
             style={{
@@ -117,19 +176,19 @@ export default function SettingsPage() {
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <Button variant="primary" size="md" onClick={handleSave} disabled={!dirty}>
-              Save
+              {t("common.save")}
             </Button>
-            {savedTick && <Badge tone="sage" size="sm">Saved ✓</Badge>}
+            {savedTick && <Badge tone="sage" size="sm">{t("common.saved")}</Badge>}
           </div>
         </Card>
       </section>
 
       {isAdmin && (
         <section>
-          <SectionHeader title="Admin" meta="ADMIN ONLY" />
+          <SectionHeader title={t("settings.adminTitle")} meta={t("settings.adminMeta")} />
           <Card padding={18}>
             <p style={{ fontSize: 13, color: "var(--color-ink-2)", margin: "0 0 12px", lineHeight: 1.5 }}>
-              Operator tools: per-user AI rate limits and account deletion. Password-gated separately.
+              {t("settings.adminDesc")}
             </p>
             <Link
               href="/admin"
@@ -147,20 +206,20 @@ export default function SettingsPage() {
                 textDecoration: "none",
               }}
             >
-              Open admin →
+              {t("settings.openAdmin")}
             </Link>
           </Card>
         </section>
       )}
 
       <section>
-        <SectionHeader title="Session" />
+        <SectionHeader title={t("settings.sessionTitle")} />
         <Card padding={18}>
           <p style={{ fontSize: 13, color: "var(--color-ink-2)", margin: "0 0 12px", lineHeight: 1.5 }}>
-            Logging out clears your session on this device. Your data stays in Notion and Supabase.
+            {t("settings.sessionDesc")}
           </p>
           <Button variant="danger" size="md" onClick={handleLogout}>
-            Log out
+            {t("common.logout")}
           </Button>
         </Card>
       </section>

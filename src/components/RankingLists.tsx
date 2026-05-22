@@ -1,5 +1,7 @@
+"use client";
 import type { ExpenseRecord } from "@/lib/types";
 import { topExpenses, topMerchants, topSpendingDays, totalByCategory } from "@/lib/chartUtils";
+import { useLanguage, categoryLabel } from "@/lib/i18n";
 
 function formatAmount(value: number): string {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -11,6 +13,7 @@ type Props = {
 };
 
 export default function RankingLists({ records, baseCurrency }: Props) {
+  const { t, language } = useLanguage();
   const expenses = topExpenses(records, 10);
   const merchants = topMerchants(records, 5);
   const days = topSpendingDays(records, 5);
@@ -18,9 +21,9 @@ export default function RankingLists({ records, baseCurrency }: Props) {
 
   return (
     <div className="grid md:grid-cols-2 gap-3">
-      <RankCard title="Top expenses">
+      <RankCard title={t("ranking.topExpenses")}>
         {expenses.length === 0 ? (
-          <Empty />
+          <Empty label={t("ranking.noData")} />
         ) : (
           <ol className="divide-y divide-zinc-100">
             {expenses.map((r, i) => {
@@ -30,8 +33,8 @@ export default function RankingLists({ records, baseCurrency }: Props) {
                 <li key={r.id} className="flex items-center gap-2 px-3 py-2 text-sm">
                   <span className="text-xs text-zinc-400 tabular-nums w-5">{i + 1}</span>
                   <span className="flex-1 min-w-0">
-                    <div className="truncate text-zinc-900">{r.merchant || r.category}</div>
-                    <div className="text-[11px] text-zinc-500">{r.date} · {r.category}</div>
+                    <div className="truncate text-zinc-900">{r.merchant || categoryLabel(r.category, language)}</div>
+                    <div className="text-[11px] text-zinc-500">{r.date} · {categoryLabel(r.category, language)}</div>
                   </span>
                   <span className="font-medium tabular-nums whitespace-nowrap">{formatAmount(amt)} {cur}</span>
                 </li>
@@ -41,9 +44,9 @@ export default function RankingLists({ records, baseCurrency }: Props) {
         )}
       </RankCard>
 
-      <RankCard title="Top merchants">
+      <RankCard title={t("ranking.topMerchants")}>
         {merchants.length === 0 ? (
-          <Empty />
+          <Empty label={t("ranking.noData")} />
         ) : (
           <ol className="divide-y divide-zinc-100">
             {merchants.map((m, i) => (
@@ -58,9 +61,9 @@ export default function RankingLists({ records, baseCurrency }: Props) {
         )}
       </RankCard>
 
-      <RankCard title="Highest spending days">
+      <RankCard title={t("ranking.highestDays")}>
         {days.length === 0 ? (
-          <Empty />
+          <Empty label={t("ranking.noData")} />
         ) : (
           <ol className="divide-y divide-zinc-100">
             {days.map((d, i) => (
@@ -74,15 +77,15 @@ export default function RankingLists({ records, baseCurrency }: Props) {
         )}
       </RankCard>
 
-      <RankCard title="Top categories">
+      <RankCard title={t("ranking.topCategories")}>
         {categories.length === 0 ? (
-          <Empty />
+          <Empty label={t("ranking.noData")} />
         ) : (
           <ol className="divide-y divide-zinc-100">
             {categories.map((c, i) => (
               <li key={c.category} className="flex items-center gap-2 px-3 py-2 text-sm">
                 <span className="text-xs text-zinc-400 tabular-nums w-5">{i + 1}</span>
-                <span className="flex-1 truncate text-zinc-900">{c.category}</span>
+                <span className="flex-1 truncate text-zinc-900">{categoryLabel(c.category, language)}</span>
                 <span className="font-medium tabular-nums whitespace-nowrap">{formatAmount(c.total)} {baseCurrency}</span>
               </li>
             ))}
@@ -102,6 +105,6 @@ function RankCard({ title, children }: { title: string; children: React.ReactNod
   );
 }
 
-function Empty() {
-  return <div className="text-xs text-zinc-500 px-4 py-4">No data.</div>;
+function Empty({ label }: { label: string }) {
+  return <div className="text-xs text-zinc-500 px-4 py-4">{label}</div>;
 }

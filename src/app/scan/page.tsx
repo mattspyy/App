@@ -1,30 +1,24 @@
 "use client";
 import { useSession } from "@/lib/session";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import UploadBox from "@/components/UploadBox";
 import { Card, Button, ButtonLink, Alert, SectionHeader } from "@/components/ui";
+import { useLanguage } from "@/lib/i18n";
 import type { SourceType } from "@/lib/types";
 
 type Staged = { dataUri: string; sourceType: SourceType };
 
-const SCAN_STEPS = [
-  "Uploading image",
-  "Reading receipt",
-  "Extracting merchant and date",
-  "Extracting amount and currency",
-  "Detecting categories",
-  "Preparing confirmation",
-] as const;
-
 const STEP_INTERVAL_MS = 900;
+const STEP_COUNT = 6;
 
 function ScanPageInner() {
   const session = useSession();
   const router = useRouter();
   const search = useSearchParams();
+  const { t } = useLanguage();
   const tripId = search.get("tripId") || "";
   const partyId = search.get("partyId") || "";
   const queryParts: string[] = [];
@@ -32,6 +26,18 @@ function ScanPageInner() {
   if (partyId) queryParts.push(`partyId=${encodeURIComponent(partyId)}`);
   const queryString = queryParts.length ? `?${queryParts.join("&")}` : "";
   const manualHref = `/scan/confirm${queryString ? `${queryString}&manual=1` : "?manual=1"}`;
+
+  const steps = useMemo(
+    () => [
+      t("scan.step1"),
+      t("scan.step2"),
+      t("scan.step3"),
+      t("scan.step4"),
+      t("scan.step5"),
+      t("scan.step6"),
+    ],
+    [t],
+  );
 
   const [staged, setStaged] = useState<Staged | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,8 +48,8 @@ function ScanPageInner() {
 
   useEffect(() => {
     if (!error) return;
-    const t = setTimeout(() => router.push(manualHref), 1800);
-    return () => clearTimeout(t);
+    const tm = setTimeout(() => router.push(manualHref), 1800);
+    return () => clearTimeout(tm);
   }, [error, router, manualHref]);
 
   useEffect(() => {
@@ -53,7 +59,7 @@ function ScanPageInner() {
       return;
     }
     intervalRef.current = setInterval(() => {
-      setStepIndex((i) => Math.min(i + 1, SCAN_STEPS.length - 2));
+      setStepIndex((i) => Math.min(i + 1, STEP_COUNT - 2));
     }, STEP_INTERVAL_MS);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -81,14 +87,14 @@ function ScanPageInner() {
       if (res.status === 429) {
         const body = await res.json().catch(() => ({}));
         console.error("/api/analyze 429", body);
-        setError("You've made several requests recently. Please wait a moment and try again.");
+        setError(t("scan.tooManyRequests"));
         setBusy(false);
         return;
       }
       const data = await res.json();
       if (!res.ok) {
         console.error("/api/analyze error", data);
-        setError("Something went wrong. Please try again.");
+        setError(t("scan.somethingWrong"));
         setBusy(false);
         return;
       }
@@ -97,11 +103,11 @@ function ScanPageInner() {
         JSON.stringify({ analysis: data.analysis, imageUrl: data.imageUrl, sourceType: staged.sourceType }),
       );
       setFetchDone(true);
-      setStepIndex(SCAN_STEPS.length - 1);
+      setStepIndex(STEP_COUNT - 1);
       setTimeout(() => router.push(`/scan/confirm${queryString}`), 400);
     } catch (err) {
       console.error("/api/analyze network error", err);
-      setError("Something went wrong. Please try again.");
+      setError(t("scan.somethingWrong"));
       setBusy(false);
     }
   }
@@ -109,12 +115,12 @@ function ScanPageInner() {
   if (busy && staged) {
     return (
       <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
-        <div className="fxt-eyebrow">ANALYZING WITH AI</div>
+        <div className="fxt-eyebrow">{t("scan.analyzing")}</div>
         <h1
           className="fxt-display"
           style={{ fontSize: 32, margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
         >
-          Reading your receipt…
+          {t("scan.readingReceipt")}
         </h1>
 
         <Card padding={0} tone="soft">
@@ -148,7 +154,7 @@ function ScanPageInner() {
               flexDirection: "column",
             }}
           >
-            {SCAN_STEPS.map((label, i) => {
+            {steps.map((label, i) => {
               const isDone = fetchDone ? true : i < stepIndex;
               const isActive = !fetchDone && i === stepIndex;
               return (
@@ -180,7 +186,7 @@ function ScanPageInner() {
           </ol>
         </Card>
         <p style={{ fontSize: 12, color: "var(--color-ink-3)", textAlign: "center", margin: 0 }}>
-          This usually takes 5–10 seconds.
+          {t("scan.usuallyTakes")}
         </p>
       </div>
     );
@@ -189,15 +195,15 @@ function ScanPageInner() {
   if (staged) {
     return (
       <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
-        <div className="fxt-eyebrow">REVIEW IMAGE</div>
+        <div className="fxt-eyebrow">{t("scan.review")}</div>
         <h1
           className="fxt-display"
           style={{ fontSize: 32, margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
         >
-          Looks right?
+          {t("scan.looksRight")}
         </h1>
 
-        {error && <Alert tone="amber" title="Couldn't analyze that image.">{error} Redirecting to manual entry…</Alert>}
+        {error && <Alert tone="amber" title={t("scan.couldntAnalyze")}>{error} {t("scan.redirecting")}</Alert>}
 
         <Card padding={0} tone="soft">
           <div
@@ -222,10 +228,10 @@ function ScanPageInner() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <Button onClick={analyze} disabled={busy} variant="accent" size="lg" full>
-            ✨ Analyze with AI
+            {t("scan.analyze")}
           </Button>
           <ButtonLink href={manualHref} variant="secondary" size="lg" full>
-            Skip AI — enter manually
+            {t("scan.skipAi")}
           </ButtonLink>
           <Button
             type="button"
@@ -235,7 +241,7 @@ function ScanPageInner() {
             size="md"
             full
           >
-            ← Choose a different image
+            {t("scan.chooseDifferent")}
           </Button>
         </div>
       </div>
@@ -245,47 +251,47 @@ function ScanPageInner() {
   return (
     <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
       <header>
-        <div className="fxt-eyebrow">ADD AN EXPENSE</div>
+        <div className="fxt-eyebrow">{t("scan.eyebrow")}</div>
         <h1
           className="fxt-display"
           style={{ fontSize: "clamp(28px, 4.6vw, 40px)", margin: "8px 0 6px", lineHeight: 1.1, letterSpacing: "-0.015em" }}
         >
-          How would you like to add this?
+          {t("scan.title")}
         </h1>
         <p style={{ color: "var(--color-ink-2)", fontSize: 14, margin: 0, maxWidth: "56ch" }}>
-          Photos and screenshots go through AI. Smart Add parses one short line. Manual lets you fill the form yourself. Either way, you confirm before saving.
+          {t("scan.description")}
         </p>
       </header>
 
-      <SectionHeader title="From an image" meta="AI EXTRACTS THE FIELDS" />
+      <SectionHeader title={t("scan.fromImage")} meta={t("scan.fromImageMeta")} />
       <div style={{ display: "grid", gap: 10 }}>
         <UploadBox
-          label="📷 Scan receipt"
-          hint="Take a photo or pick a paper-receipt image"
+          label={t("scan.scanReceipt")}
+          hint={t("scan.scanReceiptHint")}
           capture="environment"
           onFile={(uri) => handleFile(uri, "receipt")}
         />
         <UploadBox
-          label="🖼️ Upload screenshot"
-          hint="Apple Pay, Google Pay, banking apps, Alipay, WeChat Pay, online checkout"
+          label={t("scan.uploadScreenshot")}
+          hint={t("scan.uploadScreenshotHint")}
           onFile={(uri) => handleFile(uri, "screenshot")}
         />
       </div>
 
-      <SectionHeader title="By text" meta="WITHOUT AN IMAGE" />
+      <SectionHeader title={t("scan.byText")} meta={t("scan.byTextMeta")} />
       <div style={{ display: "grid", gap: 10 }}>
         <MethodLink
           href={`/scan/smart-add${queryString}`}
-          icon="✨"
-          title="Smart Add"
-          hint="Type one short line. AI fills merchant, amount, payer, and split."
+          icon="\u2728"
+          title={t("scan.smartAdd")}
+          hint={t("scan.smartAddHint")}
           accent
         />
         <MethodLink
           href={manualHref}
-          icon="✏️"
-          title="Manual Add"
-          hint="Fill in every field yourself. No AI."
+          icon="\u270F\uFE0F"
+          title={t("scan.manualAdd")}
+          hint={t("scan.manualAddHint")}
         />
       </div>
     </div>
@@ -348,7 +354,7 @@ function MethodLink({
           {hint}
         </div>
       </div>
-      <span aria-hidden style={{ color: "var(--color-ink-3)", fontSize: 18 }}>›</span>
+      <span aria-hidden style={{ color: "var(--color-ink-3)", fontSize: 18 }}>\u203A</span>
     </Link>
   );
 }
@@ -371,7 +377,7 @@ function StepIcon({ state }: { state: "done" | "active" | "pending" }) {
           flexShrink: 0,
         }}
       >
-        ✓
+        \u2713
       </span>
     );
   }

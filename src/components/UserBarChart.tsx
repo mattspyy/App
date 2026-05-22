@@ -2,12 +2,14 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import type { ExpenseRecord } from "@/lib/types";
 import { totalByUser } from "@/lib/chartUtils";
+import { useLanguage } from "@/lib/i18n";
 
 export default function UserBarChart({ records }: { records: ExpenseRecord[] }) {
+  const { t } = useLanguage();
   const data = totalByUser(records);
   return (
     <div className="bg-white border border-zinc-200 rounded-xl p-4">
-      <div className="text-sm font-medium mb-2">By payer</div>
+      <div className="text-sm font-medium mb-2">{t("charts.byPayer")}</div>
       <div className="h-64">
         <ResponsiveContainer>
           <BarChart data={data}>

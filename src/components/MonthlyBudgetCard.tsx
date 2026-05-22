@@ -3,6 +3,7 @@ import { useState } from "react";
 import { CURRENCIES, type Budget } from "@/lib/types";
 import { monthlyBudgetUsage } from "@/lib/budget";
 import type { ExpenseRecord } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n";
 
 type Props = {
   groupId: string;
@@ -27,6 +28,7 @@ export default function MonthlyBudgetCard({
   userId,
   onChange,
 }: Props) {
+  const { t, language } = useLanguage();
   const [editing, setEditing] = useState(false);
   const [amount, setAmount] = useState(budget ? String(budget.amount) : "");
   const [currency, setCurrency] = useState(budget?.currency || baseCurrency);
@@ -36,7 +38,7 @@ export default function MonthlyBudgetCard({
   async function handleSave() {
     const n = Number(amount);
     if (!Number.isFinite(n) || n < 0) {
-      setError("Amount must be a non-negative number");
+      setError(t("errors.amountMustBePositive"));
       return;
     }
     setSaving(true);
@@ -58,26 +60,27 @@ export default function MonthlyBudgetCard({
       setEditing(false);
       onChange();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : t("common.unknownError"));
     } finally {
       setSaving(false);
     }
   }
 
   const usage = budget ? monthlyBudgetUsage(budget, records) : null;
-  const month = new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const localeMap: Record<string, string> = { "zh-HK": "zh-HK", en: "en-US", "zh-CN": "zh-CN" };
+  const month = new Date().toLocaleDateString(localeMap[language] || undefined, { month: "long", year: "numeric" });
 
   if (!budget && !editing) {
     if (!canEdit) return null;
     return (
       <div className="bg-white border border-zinc-200 rounded-xl p-3 text-sm flex items-center justify-between">
-        <span className="text-zinc-600">No monthly budget set.</span>
+        <span className="text-zinc-600">{t("budget.notSet")}</span>
         <button
           type="button"
           onClick={() => setEditing(true)}
           className="text-xs px-2 py-1 rounded border border-zinc-300 bg-white"
         >
-          Set budget
+          {t("budget.setBudget")}
         </button>
       </div>
     );
@@ -86,11 +89,11 @@ export default function MonthlyBudgetCard({
   if (editing) {
     return (
       <div className="bg-white border border-zinc-200 rounded-xl p-3 space-y-2 text-sm">
-        <div className="text-xs text-zinc-600">Monthly budget</div>
+        <div className="text-xs text-zinc-600">{t("budget.monthlyTitle")}</div>
         {error && <div className="text-xs text-red-700">{error}</div>}
         <div className="flex gap-2 items-end">
           <label className="flex-1">
-            <span className="text-[11px] text-zinc-500">Amount</span>
+            <span className="text-[11px] text-zinc-500">{t("budget.amount")}</span>
             <input
               className="input"
               inputMode="decimal"
@@ -99,7 +102,7 @@ export default function MonthlyBudgetCard({
             />
           </label>
           <label>
-            <span className="text-[11px] text-zinc-500">Currency</span>
+            <span className="text-[11px] text-zinc-500">{t("budget.currency")}</span>
             <select
               className="input"
               value={currency}
@@ -116,14 +119,14 @@ export default function MonthlyBudgetCard({
             disabled={saving}
             className="text-xs px-3 py-1.5 rounded border border-zinc-900 bg-zinc-900 text-white disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("common.saving") : t("common.save")}
           </button>
           <button
             type="button"
             onClick={() => { setEditing(false); setError(null); }}
             className="text-xs px-3 py-1.5 rounded border border-zinc-300 bg-white"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       </div>
@@ -134,14 +137,14 @@ export default function MonthlyBudgetCard({
   return (
     <div className="bg-white border border-zinc-200 rounded-xl p-3 space-y-1">
       <div className="flex items-baseline justify-between text-sm">
-        <div className="text-zinc-600">Monthly budget · {month}</div>
+        <div className="text-zinc-600">{t("budget.monthlyFmt", { month })}</div>
         {canEdit && (
           <button
             type="button"
             onClick={() => { setAmount(String(budget.amount)); setCurrency(budget.currency); setEditing(true); }}
             className="text-xs text-zinc-500 hover:text-zinc-900 underline"
           >
-            Edit
+            {t("budget.edit")}
           </button>
         )}
       </div>
@@ -156,8 +159,8 @@ export default function MonthlyBudgetCard({
       </div>
       <div className="text-xs text-zinc-500">
         {usage.remaining >= 0
-          ? `${formatAmount(usage.remaining)} ${usage.currency} remaining`
-          : `${formatAmount(-usage.remaining)} ${usage.currency} over budget`}
+          ? t("budget.remainingFmt", { amount: formatAmount(usage.remaining), cur: usage.currency })
+          : t("budget.overFmt", { amount: formatAmount(-usage.remaining), cur: usage.currency })}
       </div>
     </div>
   );

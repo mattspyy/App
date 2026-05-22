@@ -5,10 +5,12 @@ import { useSession } from "@/lib/session";
 import { CURRENCIES, type Trip } from "@/lib/types";
 import { detectCurrency } from "@/lib/destinationCurrency";
 import { Card, Button, TextField, Alert, SectionHeader, Badge } from "@/components/ui";
+import { useLanguage } from "@/lib/i18n";
 
 export default function NewTripPage() {
   const router = useRouter();
   const session = useSession();
+  const { t } = useLanguage();
   const [tripName, setTripName] = useState("");
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -44,13 +46,13 @@ export default function NewTripPage() {
     }
   }
 
-  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
+  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("states.loading")}</div>;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!session) return;
     if (!tripName.trim()) {
-      setError("Trip name is required");
+      setError(t("tripsNew.nameRequired"));
       return;
     }
     setSubmitting(true);
@@ -85,51 +87,51 @@ export default function NewTripPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 640, margin: "0 auto" }}>
       <header>
-        <div className="fxt-eyebrow">NEW TRIP</div>
+        <div className="fxt-eyebrow">{t("tripsNew.eyebrow")}</div>
         <h1
           className="fxt-display"
           style={{ fontSize: "clamp(28px, 4.6vw, 40px)", margin: "8px 0 6px", lineHeight: 1.1, letterSpacing: "-0.015em" }}
         >
-          A new place to <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>track</em> things.
+          {t("tripsNew.title")} <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>{t("tripsNew.titleAccent")}</em> {t("tripsNew.titleSuffix")}
         </h1>
         <p style={{ color: "var(--color-ink-2)", fontSize: 14, margin: 0, maxWidth: "56ch" }}>
-          Give your trip a name and dates. The rest is optional — fill in budget and currency now or later.
+          {t("tripsNew.description")}
         </p>
       </header>
 
-      {error && <Alert tone="accent" title="Couldn't create the trip.">{error}</Alert>}
+      {error && <Alert tone="accent" title={t("tripsNew.errorTitle")}>{error}</Alert>}
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <section>
-          <SectionHeader title="The basics" />
+          <SectionHeader title={t("tripsNew.sectionBasics")} />
           <Card padding={18}>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <TextField
-                label="Trip name"
-                placeholder="e.g. Kyoto weekend"
+                label={t("tripsNew.tripNameLabel")}
+                placeholder={t("tripsNew.tripNamePlaceholder")}
                 value={tripName}
                 onChange={(e) => setTripName(e.target.value)}
                 required
                 autoFocus
               />
               <TextField
-                label="Destination"
-                placeholder="e.g. Tokyo, Japan"
+                label={t("tripsNew.destinationLabel")}
+                placeholder={t("tripsNew.destinationPlaceholder")}
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
                 onBlur={handleDestinationBlur}
-                helper={detectedHint ? `Detected currency: ${detectedHint}.` : undefined}
+                helper={detectedHint ? t("tripsNew.detectedCurrencyFmt", { cur: detectedHint }) : undefined}
               />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <DateField label="Start date" value={startDate} onChange={setStartDate} />
-                <DateField label="End date" value={endDate} onChange={setEndDate} />
+                <DateField label={t("tripsNew.startDate")} value={startDate} onChange={setStartDate} />
+                <DateField label={t("tripsNew.endDate")} value={endDate} onChange={setEndDate} />
               </div>
             </div>
           </Card>
         </section>
 
         <section>
-          <SectionHeader title="Money" meta="OPTIONAL" />
+          <SectionHeader title={t("tripsNew.sectionMoney")} meta={t("tripsNew.optional")} />
           <Card padding={18}>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
@@ -145,7 +147,7 @@ export default function NewTripPage() {
                     marginBottom: 6,
                   }}
                 >
-                  Base currency
+                  {t("tripsNew.baseCurrencyLabel")}
                 </label>
                 <div
                   style={{
@@ -183,24 +185,24 @@ export default function NewTripPage() {
                 </div>
                 {detectedHint && (
                   <div style={{ marginTop: 8 }}>
-                    <Badge tone="sage" size="sm">Detected {detectedHint}</Badge>
+                    <Badge tone="sage" size="sm">{t("tripsNew.detectedBadge", { cur: detectedHint })}</Badge>
                   </div>
                 )}
               </div>
               <TextField
-                label="Budget"
-                placeholder="e.g. 2000"
+                label={t("tripsNew.budgetLabel")}
+                placeholder={t("tripsNew.budgetPlaceholder")}
                 inputMode="decimal"
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
-                helper={`In ${baseCurrency}. Leave empty if you don't want one.`}
+                helper={t("tripsNew.budgetHelperFmt", { cur: baseCurrency })}
               />
             </div>
           </Card>
         </section>
 
         <section>
-          <SectionHeader title="Notes" meta="OPTIONAL" />
+          <SectionHeader title={t("tripsNew.sectionNotes")} meta={t("tripsNew.optional")} />
           <Card padding={18}>
             <label style={{ display: "block" }}>
               <span
@@ -214,13 +216,13 @@ export default function NewTripPage() {
                   marginBottom: 6,
                 }}
               >
-                Anything to remember
+                {t("tripsNew.notesLabel")}
               </span>
               <textarea
                 className="fxt-focus"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Hotel booking ref, meeting points, etc."
+                placeholder={t("tripsNew.notesPlaceholder")}
                 style={{
                   width: "100%",
                   minHeight: 88,
@@ -242,10 +244,10 @@ export default function NewTripPage() {
 
         <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
           <Button type="submit" disabled={submitting} variant="accent" size="lg">
-            {submitting ? "Creating…" : "Create trip"}
+            {submitting ? t("tripsNew.submitting") : t("tripsNew.submit")}
           </Button>
           <Button type="button" variant="secondary" size="lg" onClick={() => router.back()}>
-            Cancel
+            {t("tripsNew.cancel")}
           </Button>
         </div>
       </form>

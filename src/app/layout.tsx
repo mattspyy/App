@@ -3,6 +3,7 @@ import "./globals.css";
 import Nav from "@/components/Nav";
 import PendingSyncNotice from "@/components/PendingSyncNotice";
 import AppShell from "@/components/ui/AppShell";
+import LanguageSync from "@/components/LanguageSync";
 
 export const metadata: Metadata = {
   title: "FXT — Group & Trip Expenses",
@@ -14,13 +15,14 @@ const FONT_HREF =
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="zh-HK" className="h-full antialiased">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href={FONT_HREF} />
       </head>
       <body style={{ minHeight: "100%", background: "var(--color-canvas)", color: "var(--color-ink)" }}>
+        <LanguageSync />
         <Nav />
         <AppShell>
           <PendingSyncNotice />

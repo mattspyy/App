@@ -25,6 +25,7 @@ import {
   SectionHeader,
   StatCard,
 } from "@/components/ui";
+import { useLanguage, categoryLabel, splitTypeLabel } from "@/lib/i18n";
 
 function topMerchant(records: ExpenseRecord[]): { merchant: string; total: number } | null {
   const map = new Map<string, number>();
@@ -54,6 +55,7 @@ export default function ReportPage() {
   const tripId = params?.tripId;
   const router = useRouter();
   const session = useSession();
+  const { t, language } = useLanguage();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [allRecords, setAllRecords] = useState<ExpenseRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,16 +138,16 @@ export default function ReportPage() {
     downloadCsv(`${safeName}_${startDate || "all"}_${endDate || "all"}.csv`, toCsv(headers, rows));
   }
 
-  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
-  if (error) return <Alert tone="accent" title="Couldn't load the report.">{error}</Alert>;
-  if (!trip) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Trip not found.</div>;
+  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("states.loading")}</div>;
+  if (error) return <Alert tone="accent" title={t("errors.couldntLoadReport")}>{error}</Alert>;
+  if (!trip) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("common.notFound")}</div>;
 
   const baseCurrency = trip.baseCurrency || session.baseCurrency || "HKD";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 960, margin: "0 auto" }}>
       <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
-        <Link href="/trips" style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>Trips</Link>
+        <Link href="/trips" style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>{t("report.breadcrumbTrips")}</Link>
         <span style={{ margin: "0 6px" }}>/</span>
         <Link href={`/trips/${trip.tripId}`} style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>
           {trip.tripName}
@@ -154,7 +156,7 @@ export default function ReportPage() {
 
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <div className="fxt-eyebrow">TRIP REPORT</div>
+          <div className="fxt-eyebrow">{t("report.eyebrow")}</div>
           <h1
             className="fxt-display"
             style={{ fontSize: "clamp(28px, 4.6vw, 40px)", margin: "8px 0 0", lineHeight: 1.1, letterSpacing: "-0.015em" }}
@@ -163,15 +165,15 @@ export default function ReportPage() {
           </h1>
         </div>
         <ButtonLink href={`/trips/${trip.tripId}/settlement`} variant="ghost" size="md">
-          Settlement →
+          {t("report.actionSettlement")}
         </ButtonLink>
       </header>
 
       {/* RANGE + EXPORT */}
       <Card padding={16} tone="soft">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-          <DateField label="From" value={startDate} onChange={setStartDate} />
-          <DateField label="To" value={endDate} onChange={setEndDate} />
+          <DateField label={t("report.dateFrom")} value={startDate} onChange={setStartDate} />
+          <DateField label={t("report.dateTo")} value={endDate} onChange={setEndDate} />
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <Button
               type="button"
@@ -180,7 +182,7 @@ export default function ReportPage() {
               onClick={handleExport}
               disabled={records.length === 0}
             >
-              Export CSV
+              {t("report.exportCsv")}
             </Button>
           </div>
         </div>
@@ -188,33 +190,33 @@ export default function ReportPage() {
 
       {/* SUMMARY */}
       <section>
-        <SectionHeader title="Summary" meta={`${records.length} EXPENSE${records.length === 1 ? "" : "S"} · ${baseCurrency}`} />
+        <SectionHeader title={t("report.summary")} meta={t("report.expensesFmt", { n: records.length, s: records.length === 1 ? "" : "S", cur: baseCurrency })} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
-          <StatCard label="Total spending" value={`${formatAmount(summary.total)} ${baseCurrency}`} />
-          <StatCard label="Avg / day" value={`${formatAmount(summary.averageDaily)} ${baseCurrency}`} />
+          <StatCard label={t("report.totalSpending")} value={`${formatAmount(summary.total)} ${baseCurrency}`} />
+          <StatCard label={t("report.avgPerDay")} value={`${formatAmount(summary.averageDaily)} ${baseCurrency}`} />
           <StatCard
-            label="Top category"
-            value={summary.topCategory ? summary.topCategory.category : "—"}
+            label={t("report.topCategory")}
+            value={summary.topCategory ? categoryLabel(summary.topCategory.category, language) : "—"}
             hint={summary.topCategory ? `${formatAmount(summary.topCategory.total)} ${baseCurrency}` : undefined}
           />
           <StatCard
-            label="Top merchant"
+            label={t("report.topMerchant")}
             value={summary.topMerchant ? summary.topMerchant.merchant : "—"}
             hint={summary.topMerchant ? `${formatAmount(summary.topMerchant.total)} ${baseCurrency}` : undefined}
           />
           <StatCard
-            label="Highest day"
+            label={t("report.highestDay")}
             value={summary.topDay ? summary.topDay.date : "—"}
             hint={summary.topDay ? `${formatAmount(summary.topDay.total)} ${baseCurrency}` : undefined}
           />
-          <StatCard label="Expenses" value={String(records.length)} />
+          <StatCard label={t("report.expensesCount")} value={String(records.length)} />
         </div>
       </section>
 
       {/* CHARTS */}
       {records.length > 0 && (
         <section>
-          <SectionHeader title="Charts" />
+          <SectionHeader title={t("report.charts")} />
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <SpendingLineChart records={expandForDailyAnalytics(records)} />
             <PaymentMethodChart records={records} baseCurrency={baseCurrency} />
@@ -224,14 +226,14 @@ export default function ReportPage() {
 
       {/* BREAKDOWNS */}
       <section>
-        <SectionHeader title="Breakdown" />
+        <SectionHeader title={t("report.breakdown")} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
           <BreakdownTable
-            title="By category"
-            rows={summary.byCategory.map((c) => [c.category, c.total.toFixed(2)])}
+            title={t("report.byCategory")}
+            rows={summary.byCategory.map((c) => [categoryLabel(c.category, language), c.total.toFixed(2)])}
           />
           <BreakdownTable
-            title="By person"
+            title={t("report.byPerson")}
             rows={summary.byUser.map((u) => [u.userName, u.total.toFixed(2)])}
           />
         </div>
@@ -240,7 +242,7 @@ export default function ReportPage() {
       {/* RANKINGS */}
       {records.length > 0 && (
         <section>
-          <SectionHeader title="Rankings" meta="TOP 10" />
+          <SectionHeader title={t("report.rankings")} meta={t("report.top10")} />
           <RankingLists records={records} baseCurrency={baseCurrency} />
         </section>
       )}
@@ -252,18 +254,18 @@ export default function ReportPage() {
 
       {/* RECORDS TABLE */}
       <section>
-        <SectionHeader title="All expenses" meta={`${records.length} ROW${records.length === 1 ? "" : "S"}`} />
+        <SectionHeader title={t("report.allExpenses")} meta={`${records.length} ${records.length === 1 ? "ROW" : "ROWS"}`} />
         <Card padding={0}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "var(--color-bg-soft)", color: "var(--color-ink-2)" }}>
-                  <Th>Date</Th>
-                  <Th>Merchant</Th>
-                  <Th>Category</Th>
-                  <Th>Payer</Th>
-                  <Th>Split</Th>
-                  <Th align="right">Amount</Th>
+                  <Th>{t("report.thDate")}</Th>
+                  <Th>{t("report.thMerchant")}</Th>
+                  <Th>{t("report.thCategory")}</Th>
+                  <Th>{t("report.thPayer")}</Th>
+                  <Th>{t("report.thSplit")}</Th>
+                  <Th align="right">{t("report.thAmount")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -271,9 +273,9 @@ export default function ReportPage() {
                   <tr key={r.id} style={{ borderTop: "1px solid var(--color-line-soft)" }}>
                     <Td className="fxt-mono" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{r.date}</Td>
                     <Td>{r.merchant || "—"}</Td>
-                    <Td>{r.category}</Td>
+                    <Td>{categoryLabel(r.category, language)}</Td>
                     <Td>{r.payerName || r.userName}</Td>
-                    <Td><SplitLabel value={r.splitType} /></Td>
+                    <Td><SplitLabel value={r.splitType} language={language} /></Td>
                     <Td align="right">
                       <div className="fxt-mono" style={{ fontWeight: 500 }}>
                         {r.amount.toFixed(2)} {r.currency}
@@ -289,7 +291,7 @@ export default function ReportPage() {
                 {records.length === 0 && (
                   <tr>
                     <td colSpan={6} style={{ padding: 24, textAlign: "center", color: "var(--color-ink-3)" }}>
-                      No expenses in this range.
+                      {t("report.empty")}
                     </td>
                   </tr>
                 )}
@@ -303,13 +305,14 @@ export default function ReportPage() {
 }
 
 function SettlementSummarySection({ records, baseCurrency }: { records: ExpenseRecord[]; baseCurrency: string }) {
+  const { t } = useLanguage();
   const usable = records.filter((r) => typeof r.baseAmount === "number" && r.baseCurrency === baseCurrency);
   const balances = calculateBalances(usable);
   const settlements = calculateSettlements(balances);
   if (balances.length === 0) return null;
   return (
     <section>
-      <SectionHeader title="Settlement summary" meta={`${baseCurrency}`} />
+      <SectionHeader title={t("report.settlementSummary")} meta={`${baseCurrency}`} />
       <Card padding={0}>
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {balances.map((b, i) => (
@@ -326,7 +329,7 @@ function SettlementSummarySection({ records, baseCurrency }: { records: ExpenseR
             >
               <span style={{ fontFamily: "var(--font-serif)", fontSize: 14 }}>{b.userName}</span>
               <span className="fxt-mono" style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
-                paid {b.totalPaid.toFixed(2)} · owed {b.totalOwed.toFixed(2)}
+                {t("settlement.paidLabel")} {b.totalPaid.toFixed(2)} · {t("settlement.owedLabel")} {b.totalOwed.toFixed(2)}
               </span>
               <span
                 className="fxt-mono"
@@ -374,7 +377,7 @@ function SettlementSummarySection({ records, baseCurrency }: { records: ExpenseR
               }}
             >
               <strong>{s.fromUserName}</strong>
-              <span style={{ color: "var(--color-ink-3)", fontStyle: "italic" }}> pays </span>
+              <span style={{ color: "var(--color-ink-3)", fontStyle: "italic" }}>{t("settlement.pays")}</span>
               <strong>{s.toUserName}</strong>
               <span className="fxt-mono" style={{ marginLeft: 10, fontSize: 13 }}>
                 {s.amount.toFixed(2)} {baseCurrency}
@@ -388,6 +391,7 @@ function SettlementSummarySection({ records, baseCurrency }: { records: ExpenseR
 }
 
 function BreakdownTable({ title, rows }: { title: string; rows: Array<[string, string]> }) {
+  const { t } = useLanguage();
   return (
     <div>
       <div
@@ -423,7 +427,7 @@ function BreakdownTable({ title, rows }: { title: string; rows: Array<[string, s
           ))}
           {rows.length === 0 && (
             <li style={{ padding: 16, textAlign: "center", color: "var(--color-ink-3)", fontSize: 13 }}>
-              No data.
+              {t("ranking.noData")}
             </li>
           )}
         </ul>
@@ -513,12 +517,8 @@ function Td({
   );
 }
 
-function SplitLabel({ value }: { value?: string }) {
+function SplitLabel({ value, language }: { value?: string; language: import("@/lib/i18n").Language }) {
   if (!value) return <span style={{ color: "var(--color-ink-3)" }}>—</span>;
-  const label =
-    value === "no_split" ? "Personal"
-    : value === "equal_split" ? "Equal"
-    : value === "custom_amount" ? "Custom"
-    : value;
+  const label = splitTypeLabel(value, language);
   return <span style={{ fontSize: 12, color: "var(--color-ink-2)" }}>{label}</span>;
 }

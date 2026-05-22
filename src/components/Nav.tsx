@@ -2,20 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { clearSession, useSession } from "@/lib/session";
-
-const TOP_NAV = [
-  { href: "/parties", label: "Groups" },
-  { href: "/trips", label: "Trips" },
-  { href: "/history", label: "Expenses" },
-  { href: "/settings", label: "Settings" },
-];
-
-const BOTTOM_NAV: { href: string; label: string; icon: string }[] = [
-  { href: "/parties", label: "Groups", icon: "◇" },
-  { href: "/trips", label: "Trips", icon: "✈" },
-  { href: "/history", label: "Expenses", icon: "≡" },
-  { href: "/settings", label: "Settings", icon: "⚙" },
-];
+import { useLanguage } from "@/lib/i18n";
 
 function isActive(pathname: string | null, href: string): boolean {
   if (!pathname) return false;
@@ -26,6 +13,7 @@ export default function Nav() {
   const pathname = usePathname();
   const router = useRouter();
   const session = useSession();
+  const { t } = useLanguage();
 
   function handleLogout() {
     clearSession();
@@ -33,6 +21,20 @@ export default function Nav() {
   }
 
   const scanActive = isActive(pathname, "/scan");
+
+  const TOP_NAV = [
+    { href: "/parties", label: t("nav.groups") },
+    { href: "/trips", label: t("nav.trips") },
+    { href: "/history", label: t("nav.expenses") },
+    { href: "/settings", label: t("nav.settings") },
+  ];
+
+  const BOTTOM_NAV: { href: string; label: string; icon: string }[] = [
+    { href: "/parties", label: t("nav.groups"), icon: "\u25C7" },
+    { href: "/trips", label: t("nav.trips"), icon: "\u2708" },
+    { href: "/history", label: t("nav.expenses"), icon: "\u2261" },
+    { href: "/settings", label: t("nav.settings"), icon: "\u2699" },
+  ];
 
   return (
     <>
@@ -102,7 +104,7 @@ export default function Nav() {
                 <li style={{ marginLeft: 4 }}>
                   <Link
                     href="/scan"
-                    aria-label="Add expense"
+                    aria-label={t("nav.addExpenseAria")}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -117,7 +119,7 @@ export default function Nav() {
                     }}
                   >
                     <span aria-hidden>+</span>
-                    <span>Add</span>
+                    <span>{t("nav.add")}</span>
                   </Link>
                 </li>
               </ul>
@@ -133,7 +135,7 @@ export default function Nav() {
                   padding: 6,
                 }}
               >
-                Log out
+                {t("nav.logout")}
               </button>
             </>
           )}
@@ -175,7 +177,7 @@ export default function Nav() {
             <li style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", marginTop: -20 }}>
               <Link
                 href="/scan"
-                aria-label="Add expense"
+                aria-label={t("nav.addExpenseAria")}
                 style={{
                   display: "inline-flex",
                   flexDirection: "column",
@@ -191,8 +193,8 @@ export default function Nav() {
                   textDecoration: "none",
                 }}
               >
-                <span style={{ fontSize: 20, lineHeight: 1, fontWeight: 300 }} aria-hidden>＋</span>
-                <span style={{ fontSize: 10, marginTop: 2, fontWeight: 600, letterSpacing: "0.04em" }}>Add</span>
+                <span style={{ fontSize: 20, lineHeight: 1, fontWeight: 300 }} aria-hidden>\uFF0B</span>
+                <span style={{ fontSize: 10, marginTop: 2, fontWeight: 600, letterSpacing: "0.04em" }}>{t("nav.add")}</span>
               </Link>
             </li>
             {BOTTOM_NAV.slice(2).map((n) => (

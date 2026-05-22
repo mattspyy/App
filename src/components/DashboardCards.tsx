@@ -1,6 +1,8 @@
+"use client";
 import { useState } from "react";
 import type { ExpenseRecord } from "@/lib/types";
 import { totalAmount, topCategory, topSpender } from "@/lib/chartUtils";
+import { useLanguage, categoryLabel } from "@/lib/i18n";
 
 const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
 
@@ -11,21 +13,23 @@ export default function DashboardCards({
   records: ExpenseRecord[];
   baseCurrency: string;
 }) {
+  const { t, language } = useLanguage();
   const [renderedAt] = useState(() => Date.now());
   const total = totalAmount(records);
   const recent7 = records.filter((r) => {
-    const t = new Date(r.date).getTime();
-    if (Number.isNaN(t)) return false;
-    return renderedAt - t < SEVEN_DAYS_MS;
+    const tm = new Date(r.date).getTime();
+    if (Number.isNaN(tm)) return false;
+    return renderedAt - tm < SEVEN_DAYS_MS;
   });
   const recentTotal = totalAmount(recent7);
+  const topCat = topCategory(records);
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-      <Card label="Total" value={`${total.toFixed(2)} ${baseCurrency}`} />
-      <Card label="Expenses" value={String(records.length)} />
-      <Card label="Top category" value={topCategory(records) || "—"} />
-      <Card label="Top spender" value={topSpender(records) || "—"} />
-      <Card label="Last 7 days" value={`${recentTotal.toFixed(2)} ${baseCurrency}`} />
+      <Card label={t("dashboard.total")} value={`${total.toFixed(2)} ${baseCurrency}`} />
+      <Card label={t("dashboard.expenses")} value={String(records.length)} />
+      <Card label={t("dashboard.topCategory")} value={topCat ? categoryLabel(topCat, language) : t("common.dash")} />
+      <Card label={t("dashboard.topSpender")} value={topSpender(records) || t("common.dash")} />
+      <Card label={t("dashboard.last7Days")} value={`${recentTotal.toFixed(2)} ${baseCurrency}`} />
     </div>
   );
 }

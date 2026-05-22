@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session";
+import { useLanguage, type TranslateFn } from "@/lib/i18n";
 import type { Party } from "@/lib/types";
 import EmptyState from "@/components/EmptyState";
 import Avatar from "@/components/Avatar";
@@ -24,6 +25,7 @@ function isPersonal(p: Party, userId: string): boolean {
 export default function PartiesPage() {
   const router = useRouter();
   const session = useSession();
+  const { t } = useLanguage();
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export default function PartiesPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to join");
-      setJoinMsg({ tone: "sage", text: `Joined "${data.party.partyName}".` });
+      setJoinMsg({ tone: "sage", text: t("groups.joinedFmt", { name: data.party.partyName }) });
       setJoinCode("");
       setParties((prev) =>
         prev.find((p) => p.partyId === data.party.partyId) ? prev : [...prev, data.party],
@@ -84,43 +86,43 @@ export default function PartiesPage() {
 
   if (!session || loading)
     return (
-      <div style={{ color: "var(--color-ink-3)", fontSize: 13, padding: 16 }}>Loading…</div>
+      <div style={{ color: "var(--color-ink-3)", fontSize: 13, padding: 16 }}>{t("common.loading")}</div>
     );
-  if (error) return <Alert tone="accent" title="Couldn't load your groups.">{error}</Alert>;
+  if (error) return <Alert tone="accent" title={t("groups.errorTitle")}>{error}</Alert>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       <PageHeader
-        eyebrow={`Hi ${session.username} · Invite code ${session.inviteCode}`}
-        title={<>Your <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>groups</em></>}
-        description="Personal, family, friends, or a shared trip — every expense lives in a group."
+        eyebrow={`${t("groups.eyebrowGreeting", { name: session.username })} \u00B7 ${t("groups.inviteCodeLabel")} ${session.inviteCode}`}
+        title={<>{t("groups.title")} <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>{t("groups.titleAccent")}</em></>}
+        description={t("groups.description")}
         actions={
           <ButtonLink href="/parties/new" variant="accent" size="md">
-            + New group
+            {t("groups.newGroup")}
           </ButtonLink>
         }
       />
 
       {parties.length === 0 ? (
         <EmptyState
-          icon="👥"
-          title="No groups yet"
-          description="Create your first group to start tracking shared expenses, or join a public group with a code."
+          icon="\u{1F465}"
+          title={t("groups.empty.title")}
+          description={t("groups.empty.description")}
           ctaHref="/parties/new"
-          ctaLabel="Create your first group"
+          ctaLabel={t("groups.empty.cta")}
         />
       ) : (
         <>
           {personal && (
             <section>
-              <SectionHeader title="Just for you" meta="PERSONAL" />
-              <GroupCard party={personal} highlight />
+              <SectionHeader title={t("groups.justForYou")} meta={t("groups.personalMeta")} />
+              <GroupCard party={personal} highlight t={t} />
             </section>
           )}
 
           {others.length > 0 && (
             <section>
-              <SectionHeader title="Shared groups" meta={`${others.length} TOTAL`} />
+              <SectionHeader title={t("groups.shared")} meta={`${others.length} ${t("groups.totalSuffix")}`} />
               <ul
                 style={{
                   listStyle: "none",
@@ -133,7 +135,7 @@ export default function PartiesPage() {
               >
                 {others.map((p) => (
                   <li key={p.partyId}>
-                    <GroupCard party={p} />
+                    <GroupCard party={p} t={t} />
                   </li>
                 ))}
               </ul>
@@ -143,7 +145,7 @@ export default function PartiesPage() {
       )}
 
       <section>
-        <SectionHeader title="Join a public group" meta="WITH A 6-CHAR CODE" />
+        <SectionHeader title={t("groups.joinTitle")} meta={t("groups.joinMeta")} />
         <Card padding={18}>
           <form
             onSubmit={handleJoin}
@@ -151,15 +153,15 @@ export default function PartiesPage() {
           >
             <div style={{ flex: "1 1 220px", minWidth: 200 }}>
               <TextField
-                label="Group code"
-                placeholder="e.g. KYO-242"
+                label={t("groups.joinCodeLabel")}
+                placeholder={t("groups.joinCodePlaceholder")}
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                 maxLength={12}
               />
             </div>
             <Button type="submit" disabled={joining || !joinCode.trim()} variant="secondary">
-              {joining ? "Joining…" : "Join group"}
+              {joining ? t("groups.joining") : t("groups.joinButton")}
             </Button>
           </form>
           {joinMsg && (
@@ -173,7 +175,7 @@ export default function PartiesPage() {
   );
 }
 
-function GroupCard({ party, highlight = false }: { party: Party; highlight?: boolean }) {
+function GroupCard({ party, highlight = false, t }: { party: Party; highlight?: boolean; t: TranslateFn }) {
   const isPublic = party.type === "public";
   return (
     <Link
@@ -213,12 +215,12 @@ function GroupCard({ party, highlight = false }: { party: Party; highlight?: boo
               {party.partyName}
             </div>
             <div className="fxt-mono" style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>
-              {isPublic && party.partyCode ? `CODE ${party.partyCode}` : "PRIVATE"}
+              {isPublic && party.partyCode ? `${t("groups.cardCodePrefix")} ${party.partyCode}` : t("groups.cardPrivateLabel")}
             </div>
           </div>
         </div>
         <Badge tone={highlight ? "accent" : isPublic ? "sage" : "neutral"} size="sm">
-          {highlight ? "Personal" : isPublic ? "Public" : "Private"}
+          {highlight ? t("groups.cardPersonal") : isPublic ? t("groups.cardPublic") : t("groups.cardPrivate")}
         </Badge>
       </div>
     </Link>

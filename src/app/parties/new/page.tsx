@@ -2,11 +2,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session";
+import { useLanguage } from "@/lib/i18n";
+import { Card, Button, Alert, TextField, PageHeader, SectionHeader } from "@/components/ui";
 import type { Party } from "@/lib/types";
 
 export default function NewPartyPage() {
   const router = useRouter();
   const session = useSession();
+  const { t } = useLanguage();
   const [partyName, setPartyName] = useState("");
   const [type, setType] = useState<"private" | "public">("private");
   const [submitting, setSubmitting] = useState(false);
@@ -32,63 +35,115 @@ export default function NewPartyPage() {
       const party = data.party as Party;
       router.push(`/parties/${party.partyId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : t("common.unknownError"));
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (!session) return <div className="text-sm text-zinc-500">Loading…</div>;
+  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("states.loading")}</div>;
 
   const templates: Array<{ icon: string; label: string; name: string }> = [
-    { icon: "👤", label: "Personal", name: "Personal" },
-    { icon: "👨‍👩‍👧", label: "Family", name: "My Family" },
-    { icon: "👫", label: "Friends", name: "Friends" },
-    { icon: "✈️", label: "Travel", name: "Travel Group" },
+    { icon: "\u{1F464}", label: t("groups.new.tplPersonal"), name: t("groups.new.tplPersonalName") },
+    { icon: "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}", label: t("groups.new.tplFamily"), name: t("groups.new.tplFamilyName") },
+    { icon: "\u{1F46B}", label: t("groups.new.tplFriends"), name: t("groups.new.tplFriendsName") },
+    { icon: "\u2708\uFE0F", label: t("groups.new.tplTravel"), name: t("groups.new.tplTravelName") },
   ];
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-sm">
-      <h1 className="text-2xl font-semibold">New group</h1>
-      {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded">{error}</div>}
+    <form onSubmit={handleSubmit} style={{ maxWidth: 460, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
+      <PageHeader title={t("groups.new.title")} />
+
+      {error && <Alert tone="accent" title={t("groups.new.errorTitle")}>{error}</Alert>}
 
       <section>
-        <div className="text-xs text-zinc-600 mb-2">Quick start</div>
-        <div className="grid grid-cols-2 gap-2">
-          {templates.map((t) => (
+        <SectionHeader title={t("groups.new.quickStart")} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {templates.map((tpl) => (
             <button
-              key={t.label}
+              key={tpl.label}
               type="button"
-              onClick={() => setPartyName(t.name)}
-              className="flex items-center gap-2 px-3 py-2 rounded-md border border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50 text-sm text-left"
+              onClick={() => setPartyName(tpl.name)}
+              className="fxt-focus"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 12px",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--color-line)",
+                background: "var(--color-surface)",
+                fontSize: 14,
+                color: "var(--color-ink)",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
             >
-              <span aria-hidden>{t.icon}</span>
-              <span>{t.label}</span>
+              <span aria-hidden>{tpl.icon}</span>
+              <span>{tpl.label}</span>
             </button>
           ))}
         </div>
       </section>
 
-      <label className="block">
-        <div className="text-xs text-zinc-600 mb-1">Group name</div>
-        <input className="input" value={partyName} onChange={(e) => setPartyName(e.target.value)} required />
-      </label>
+      <Card padding={18}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <TextField
+            label={t("groups.new.nameLabel")}
+            value={partyName}
+            onChange={(e) => setPartyName(e.target.value)}
+            required
+            autoFocus
+          />
 
-      <fieldset className="space-y-2">
-        <legend className="text-xs text-zinc-600 mb-1">Type</legend>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="radio" name="type" value="private" checked={type === "private"} onChange={() => setType("private")} className="mt-1" />
-          <span><span className="font-medium">Private.</span> Only you (admin) can add members by entering their invite code.</span>
-        </label>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="radio" name="type" value="public" checked={type === "public"} onChange={() => setType("public")} className="mt-1" />
-          <span><span className="font-medium">Public.</span> Generates a group code; anyone with the code can join.</span>
-        </label>
-      </fieldset>
+          <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+            <legend
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "var(--color-ink-3)",
+                marginBottom: 4,
+              }}
+            >
+              {t("groups.new.typeLabel")}
+            </legend>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, color: "var(--color-ink)" }}>
+              <input
+                type="radio"
+                name="type"
+                value="private"
+                checked={type === "private"}
+                onChange={() => setType("private")}
+                style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
+              />
+              <span>
+                <strong>{t("groups.new.typePrivate")}</strong> {t("groups.new.typePrivateDesc")}
+              </span>
+            </label>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, color: "var(--color-ink)" }}>
+              <input
+                type="radio"
+                name="type"
+                value="public"
+                checked={type === "public"}
+                onChange={() => setType("public")}
+                style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
+              />
+              <span>
+                <strong>{t("groups.new.typePublic")}</strong> {t("groups.new.typePublicDesc")}
+              </span>
+            </label>
+          </fieldset>
+        </div>
+      </Card>
 
-      <button type="submit" disabled={submitting || !partyName.trim()} className="bg-zinc-900 text-white px-4 py-2 rounded-md disabled:opacity-50">
-        {submitting ? "Creating…" : "Create group"}
-      </button>
+      <div>
+        <Button type="submit" disabled={submitting || !partyName.trim()} variant="primary" size="lg">
+          {submitting ? t("groups.new.submitting") : t("groups.new.submit")}
+        </Button>
+      </div>
     </form>
   );
 }

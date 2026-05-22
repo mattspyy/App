@@ -2,6 +2,7 @@
 import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import type { ExpenseRecord } from "@/lib/types";
 import { totalByPaymentMethod } from "@/lib/chartUtils";
+import { useLanguage, paymentMethodLabel } from "@/lib/i18n";
 
 const PALETTE = [
   "#3b82f6", "#22c55e", "#ef4444", "#f97316",
@@ -19,21 +20,22 @@ export default function PaymentMethodChart({
   records: ExpenseRecord[];
   baseCurrency: string;
 }) {
+  const { t, language } = useLanguage();
   const data = totalByPaymentMethod(records);
   const total = data.reduce((s, d) => s + d.total, 0);
 
   if (data.length === 0) {
     return (
       <div className="bg-white border border-zinc-200 rounded-xl p-4">
-        <div className="text-sm font-medium mb-2">By payment method</div>
-        <div className="text-xs text-zinc-500">No data.</div>
+        <div className="text-sm font-medium mb-2">{t("charts.byPaymentMethod")}</div>
+        <div className="text-xs text-zinc-500">{t("ranking.noData")}</div>
       </div>
     );
   }
 
   return (
     <div className="bg-white border border-zinc-200 rounded-xl p-4">
-      <div className="text-sm font-medium mb-2">By payment method</div>
+      <div className="text-sm font-medium mb-2">{t("charts.byPaymentMethod")}</div>
       <div className="grid sm:grid-cols-2 gap-3 items-center">
         <div className="h-48">
           <ResponsiveContainer>
@@ -57,7 +59,7 @@ export default function PaymentMethodChart({
                   style={{ backgroundColor: PALETTE[i % PALETTE.length] }}
                   aria-hidden
                 />
-                <span className="flex-1 truncate text-zinc-700">{d.method}</span>
+                <span className="flex-1 truncate text-zinc-700">{paymentMethodLabel(d.method, language)}</span>
                 <span className="text-zinc-500 tabular-nums">{pct.toFixed(0)}%</span>
                 <span className="text-zinc-900 font-medium tabular-nums whitespace-nowrap">
                   {formatAmount(d.total)} {baseCurrency}

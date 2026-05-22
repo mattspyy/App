@@ -13,6 +13,7 @@ import {
   ButtonLink,
   SectionHeader,
 } from "@/components/ui";
+import { useLanguage } from "@/lib/i18n";
 
 type SettlementPaymentApi = {
   id: string;
@@ -36,6 +37,7 @@ export default function SettlementPage() {
   const tripId = params?.tripId;
   const router = useRouter();
   const session = useSession();
+  const { t } = useLanguage();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [records, setRecords] = useState<ExpenseRecord[]>([]);
   const [payments, setPayments] = useState<SettlementPaymentApi[]>([]);
@@ -150,13 +152,13 @@ export default function SettlementPage() {
   async function handleCopySummary() {
     if (!trip) return;
     const lines: string[] = [];
-    lines.push(`${trip.tripName} — settlement`);
+    lines.push(`${trip.tripName} \u2014 ${t("settlement.copy.tripSuffix")}`);
     if (trip.startDate || trip.endDate) {
-      lines.push(`${trip.startDate || "?"} → ${trip.endDate || "?"}`);
+      lines.push(`${trip.startDate || "?"} \u2192 ${trip.endDate || "?"}`);
     }
     lines.push("");
     if (balances.length > 0) {
-      lines.push("Balances:");
+      lines.push(t("settlement.copy.balances"));
       for (const b of balances) {
         const sign = b.net > 0 ? "+" : "";
         lines.push(`  ${b.userName}: ${sign}${b.net.toFixed(2)} ${baseCurrency}`);
@@ -164,11 +166,11 @@ export default function SettlementPage() {
       lines.push("");
     }
     if (settlements.length === 0) {
-      lines.push("Everyone is settled up.");
+      lines.push(t("settlement.copy.allSettled"));
     } else {
-      lines.push("Who pays whom:");
+      lines.push(t("settlement.copy.whoPaysWhom"));
       for (const s of settlements) {
-        lines.push(`  ${s.fromUserName} pays ${s.toUserName} ${s.amount.toFixed(2)} ${baseCurrency}`);
+        lines.push(t("settlement.copy.paysFmt", { from: s.fromUserName, to: s.toUserName, amount: s.amount.toFixed(2), cur: baseCurrency }));
       }
     }
     const text = lines.join("\n");
@@ -186,14 +188,14 @@ export default function SettlementPage() {
     }
   }
 
-  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
-  if (error) return <Alert tone="accent" title="Couldn't load settlement.">{error}</Alert>;
-  if (!trip) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Trip not found.</div>;
+  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("states.loading")}</div>;
+  if (error) return <Alert tone="accent" title={t("errors.couldntLoadSettlement")}>{error}</Alert>;
+  if (!trip) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("common.notFound")}</div>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 720, margin: "0 auto" }}>
       <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
-        <Link href="/trips" style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>Trips</Link>
+        <Link href="/trips" style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>{t("settlement.breadcrumbTrips")}</Link>
         <span style={{ margin: "0 6px" }}>/</span>
         <Link href={`/trips/${trip.tripId}`} style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>
           {trip.tripName}
@@ -201,36 +203,35 @@ export default function SettlementPage() {
       </div>
 
       <header>
-        <div className="fxt-eyebrow">SETTLEMENT</div>
+        <div className="fxt-eyebrow">{t("settlement.eyebrow")}</div>
         <h1
           className="fxt-display"
           style={{ fontSize: "clamp(28px, 4.6vw, 40px)", margin: "8px 0 6px", lineHeight: 1.1, letterSpacing: "-0.015em" }}
         >
           {settlements.length === 0 && balances.length > 0
-            ? <>All <em style={{ fontStyle: "italic", color: "var(--color-sage)" }}>settled.</em></>
-            : <>Who owes <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>whom?</em></>}
+            ? <>{t("settlement.titleSettled")} <em style={{ fontStyle: "italic", color: "var(--color-sage)" }}>{t("settlement.titleSettledAccent")}</em></>
+            : <>{t("settlement.titleQuestion")} <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>{t("settlement.titleQuestionAccent")}</em></>}
         </h1>
         <p style={{ color: "var(--color-ink-2)", fontSize: 13, margin: 0, maxWidth: "56ch" }}>
-          All amounts in <strong className="fxt-mono" style={{ color: "var(--color-ink)" }}>{baseCurrency}</strong>.
-          Expenses marked as not split are excluded.
+          {t("settlement.subtitleFmt", { cur: baseCurrency })}
         </p>
       </header>
 
       {skippedCount > 0 && (
-        <Alert tone="amber" title={`${skippedCount} expense${skippedCount === 1 ? "" : "s"} skipped.`}>
-          No conversion to {baseCurrency} available for these — they aren&apos;t included in the totals below.
+        <Alert tone="amber" title={t("settlement.skippedFmt", { n: skippedCount, s: skippedCount === 1 ? "" : "s" })}>
+          {t("settlement.skippedDescFmt", { cur: baseCurrency })}
         </Alert>
       )}
 
       {/* SUGGESTED SETTLEMENTS */}
       <section>
         <SectionHeader
-          title="Suggested payments"
-          meta={settlements.length === 0 ? "ALL DONE" : `${settlements.length} TO GO`}
+          title={t("settlement.suggested")}
+          meta={settlements.length === 0 ? t("settlement.allDone") : t("settlement.toGoFmt", { n: settlements.length })}
           action={
             balances.length > 0 ? (
               <Button type="button" variant="ghost" size="sm" onClick={handleCopySummary}>
-                {copyStatus === "copied" ? "Copied ✓" : copyStatus === "failed" ? "Copy failed" : "Copy summary"}
+                {copyStatus === "copied" ? t("common.copied") : copyStatus === "failed" ? t("common.copyFailed") : t("actions.copySummary")}
               </Button>
             ) : undefined
           }
@@ -241,10 +242,10 @@ export default function SettlementPage() {
               <span aria-hidden style={{ fontSize: 24 }}>🎉</span>
               <div>
                 <div style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 16, color: "var(--color-sage-ink)" }}>
-                  Everyone is settled up.
+                  {t("settlement.allSettledTitle")}
                 </div>
                 <div style={{ fontSize: 13, color: "var(--color-ink-2)", marginTop: 2 }}>
-                  Nothing to chase. Have a coffee.
+                  {t("settlement.allSettledDesc")}
                 </div>
               </div>
             </div>
@@ -261,7 +262,7 @@ export default function SettlementPage() {
                       <div style={{ minWidth: 0, flex: "1 1 200px" }}>
                         <div style={{ fontFamily: "var(--font-serif)", fontSize: 16, color: "var(--color-ink)", lineHeight: 1.4 }}>
                           <strong>{s.fromUserName}</strong>
-                          <span style={{ color: "var(--color-ink-3)", fontStyle: "italic" }}> pays </span>
+                          <span style={{ color: "var(--color-ink-3)", fontStyle: "italic" }}>{t("settlement.pays")}</span>
                           <strong>{s.toUserName}</strong>
                         </div>
                         <div className="fxt-mono" style={{ fontSize: 18, color: "var(--color-ink)", marginTop: 4, fontWeight: 500 }}>
@@ -275,7 +276,7 @@ export default function SettlementPage() {
                         onClick={() => markAsPaid(s, baseCurrency)}
                         disabled={marking}
                       >
-                        {marking ? "Recording…" : "Mark as paid"}
+                        {marking ? t("settlement.recording") : t("settlement.markAsPaid")}
                       </Button>
                     </div>
                   </Card>
@@ -288,10 +289,10 @@ export default function SettlementPage() {
 
       {/* BALANCES TABLE */}
       <section>
-        <SectionHeader title="Per-person balance" meta={`${balances.length} MEMBER${balances.length === 1 ? "" : "S"}`} />
+        <SectionHeader title={t("settlement.perPersonBalance")} meta={`${balances.length} ${balances.length === 1 ? "MEMBER" : "MEMBERS"}`} />
         {balances.length === 0 ? (
           <Card padding={20} tone="soft">
-            <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>No splittable expenses yet.</div>
+            <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>{t("settlement.noSplittable")}</div>
           </Card>
         ) : (
           <Card padding={0}>
@@ -313,7 +314,7 @@ export default function SettlementPage() {
                     {b.userName}
                   </span>
                   <span className="fxt-mono" style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
-                    paid {b.totalPaid.toFixed(2)} · owed {b.totalOwed.toFixed(2)}
+                    {t("settlement.paidLabel")} {b.totalPaid.toFixed(2)} · {t("settlement.owedLabel")} {b.totalOwed.toFixed(2)}
                   </span>
                   <span
                     className="fxt-mono"
@@ -343,7 +344,7 @@ export default function SettlementPage() {
       {/* RECORDED PAYMENTS */}
       {payments.length > 0 && (
         <section>
-          <SectionHeader title="Recorded payments" meta={`${payments.length} TOTAL`} />
+          <SectionHeader title={t("settlement.recordedPayments")} meta={`${payments.length} ${t("settlement.totalSuffix")}`} />
           <Card padding={0}>
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {payments.map((p, i) => {
@@ -365,7 +366,7 @@ export default function SettlementPage() {
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: "var(--font-serif)", fontSize: 14, color: "var(--color-ink)" }}>
                         <strong>{from}</strong>
-                        <span style={{ color: "var(--color-ink-3)", fontStyle: "italic" }}> paid </span>
+                        <span style={{ color: "var(--color-ink-3)", fontStyle: "italic" }}>{t("settlement.paid")}</span>
                         <strong>{to}</strong>
                       </div>
                       <div className="fxt-mono" style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>
@@ -377,7 +378,7 @@ export default function SettlementPage() {
                         {p.amount.toFixed(2)} {p.currency}
                       </span>
                       <Badge tone={p.status === "paid" ? "sage" : "amber"} size="sm">
-                        {p.status === "paid" ? "Paid" : "Pending"}
+                        {p.status === "paid" ? t("settlement.statusPaid") : t("settlement.statusPending")}
                       </Badge>
                     </div>
                   </li>
@@ -390,7 +391,7 @@ export default function SettlementPage() {
 
       <div style={{ marginTop: 4 }}>
         <ButtonLink href={`/trips/${trip.tripId}/report`} variant="ghost" size="md">
-          See full report →
+          {t("settlement.seeFullReport")}
         </ButtonLink>
       </div>
     </div>

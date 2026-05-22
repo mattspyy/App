@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session";
+import { useLanguage } from "@/lib/i18n";
 import { Card, Button, Alert } from "@/components/ui";
 
 const PLACEHOLDER_EXAMPLES = [
@@ -16,6 +17,7 @@ function SmartAddInner() {
   const router = useRouter();
   const search = useSearchParams();
   const session = useSession();
+  const { t } = useLanguage();
   const tripId = search.get("tripId") || "";
   const partyId = search.get("partyId") || "";
 
@@ -32,14 +34,14 @@ function SmartAddInner() {
     if (!session) router.replace("/login");
   }, [session, router]);
 
-  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
+  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("common.loading")}</div>;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!session) return;
     const trimmed = text.trim();
     if (!trimmed) {
-      setError("Type a short description first.");
+      setError(t("smartAdd.empty"));
       return;
     }
     setBusy(true);
@@ -59,14 +61,14 @@ function SmartAddInner() {
       if (res.status === 429) {
         const body = await res.json().catch(() => ({}));
         console.error("/api/smart-add 429", body);
-        setError("You've made several requests recently. Please wait a moment and try again.");
+        setError(t("scan.tooManyRequests"));
         setBusy(false);
         return;
       }
       const data = await res.json();
       if (!res.ok) {
         console.error("/api/smart-add error", data);
-        setError("Something went wrong. Please try again.");
+        setError(t("scan.somethingWrong"));
         setBusy(false);
         return;
       }
@@ -81,7 +83,7 @@ function SmartAddInner() {
       router.push(`/scan/confirm${confirmQuery}`);
     } catch (err) {
       console.error("/api/smart-add network error", err);
-      setError("Something went wrong. Please try again.");
+      setError(t("scan.somethingWrong"));
       setBusy(false);
     }
   }
@@ -89,12 +91,12 @@ function SmartAddInner() {
   if (busy) {
     return (
       <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
-        <div className="fxt-eyebrow">PARSING WITH AI</div>
+        <div className="fxt-eyebrow">{t("smartAdd.parsingEyebrow")}</div>
         <h1
           className="fxt-display"
           style={{ fontSize: 32, margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
         >
-          Reading your line…
+          {t("smartAdd.parsingTitle")}
         </h1>
         <Card padding={18} tone="soft">
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -111,14 +113,14 @@ function SmartAddInner() {
               }}
             />
             <div style={{ fontSize: 14, color: "var(--color-ink-2)" }}>
-              Extracting merchant, amount, payer, and split. You&apos;ll confirm everything before saving.
+              {t("smartAdd.parsingDesc")}
             </div>
           </div>
         </Card>
         <Card padding={16}>
-          <div className="fxt-eyebrow" style={{ marginBottom: 8 }}>YOU TYPED</div>
+          <div className="fxt-eyebrow" style={{ marginBottom: 8 }}>{t("smartAdd.youTyped")}</div>
           <div style={{ fontFamily: "var(--font-serif)", fontSize: 16, color: "var(--color-ink)", lineHeight: 1.5 }}>
-            “{text}”
+            \u201C{text}\u201D
           </div>
         </Card>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -130,24 +132,24 @@ function SmartAddInner() {
     <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
         <Link href={`/scan${confirmQuery}`} style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>
-          ← Add expense
+          {t("smartAdd.backToAdd")}
         </Link>
       </div>
 
       <header>
-        <div className="fxt-eyebrow">SMART ADD</div>
+        <div className="fxt-eyebrow">{t("smartAdd.eyebrow")}</div>
         <h1
           className="fxt-display"
           style={{ fontSize: "clamp(28px, 4.6vw, 40px)", margin: "8px 0 6px", lineHeight: 1.1, letterSpacing: "-0.015em" }}
         >
-          Type one line, we&apos;ll fill the form.
+          {t("smartAdd.title")}
         </h1>
         <p style={{ color: "var(--color-ink-2)", fontSize: 14, margin: 0, maxWidth: "56ch" }}>
-          Mention merchant, amount, who paid, and who to split with. AI fills the rest — you review every field before saving.
+          {t("smartAdd.description")}
         </p>
       </header>
 
-      {error && <Alert tone="accent" title="That didn't work.">{error}</Alert>}
+      {error && <Alert tone="accent" title={t("smartAdd.errorTitle")}>{error}</Alert>}
 
       <Card padding={18}>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -163,7 +165,7 @@ function SmartAddInner() {
                 marginBottom: 6,
               }}
             >
-              Describe the spend
+              {t("smartAdd.describe")}
             </span>
             <textarea
               className="fxt-focus"
@@ -197,13 +199,13 @@ function SmartAddInner() {
           </div>
 
           <Button type="submit" disabled={busy || !text.trim()} variant="accent" size="lg" full>
-            ✨ Parse and review
+            {t("smartAdd.parse")}
           </Button>
         </form>
       </Card>
 
       <section>
-        <div className="fxt-eyebrow" style={{ marginBottom: 10 }}>EXAMPLES</div>
+        <div className="fxt-eyebrow" style={{ marginBottom: 10 }}>{t("smartAdd.examples")}</div>
         <div style={{ display: "grid", gap: 8 }}>
           {PLACEHOLDER_EXAMPLES.map((ex) => (
             <button
@@ -225,9 +227,9 @@ function SmartAddInner() {
                 transition: "border-color 120ms ease, background 120ms ease",
               }}
             >
-              <span style={{ color: "var(--color-ink-3)", marginRight: 8 }} aria-hidden>“</span>
+              <span style={{ color: "var(--color-ink-3)", marginRight: 8 }} aria-hidden>\u201C</span>
               {ex}
-              <span style={{ color: "var(--color-ink-3)", marginLeft: 4 }} aria-hidden>”</span>
+              <span style={{ color: "var(--color-ink-3)", marginLeft: 4 }} aria-hidden>\u201D</span>
             </button>
           ))}
         </div>

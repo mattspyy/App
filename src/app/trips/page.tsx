@@ -6,6 +6,7 @@ import { useSession } from "@/lib/session";
 import type { Trip } from "@/lib/types";
 import EmptyState from "@/components/EmptyState";
 import { PageHeader, ButtonLink, Badge, Alert, SectionHeader } from "@/components/ui";
+import { useLanguage, type TranslateFn } from "@/lib/i18n";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -30,32 +31,33 @@ function bucketFor(t: Trip): Bucket {
   return "active";
 }
 
-function dayBadge(t: Trip): { label: string; tone: "accent" | "sage" | "amber" | "neutral" } {
+function dayBadge(trip: Trip, t: TranslateFn): { label: string; tone: "accent" | "sage" | "amber" | "neutral" } {
   const today = todayIso();
-  if (t.startDate && today < t.startDate) {
-    return { label: `In ${daysBetween(today, t.startDate)} d`, tone: "amber" };
+  if (trip.startDate && today < trip.startDate) {
+    return { label: t("trips.dayInFmt", { n: daysBetween(today, trip.startDate) }), tone: "amber" };
   }
-  if (t.endDate && today > t.endDate) {
-    return { label: `${daysBetween(t.endDate, today)} d ago`, tone: "neutral" };
+  if (trip.endDate && today > trip.endDate) {
+    return { label: t("trips.dayAgoFmt", { n: daysBetween(trip.endDate, today) }), tone: "neutral" };
   }
-  if (t.startDate && t.endDate) {
-    const totalDays = daysBetween(t.startDate, t.endDate) + 1;
-    const dayIndex = daysBetween(t.startDate, today) + 1;
-    return { label: `Day ${dayIndex}/${totalDays}`, tone: "sage" };
+  if (trip.startDate && trip.endDate) {
+    const totalDays = daysBetween(trip.startDate, trip.endDate) + 1;
+    const dayIndex = daysBetween(trip.startDate, today) + 1;
+    return { label: t("trips.dayProgressFmt", { index: dayIndex, total: totalDays }), tone: "sage" };
   }
-  return { label: "No dates", tone: "neutral" };
+  return { label: t("trips.noDates"), tone: "neutral" };
 }
 
-function formatRange(start?: string, end?: string): string {
+function formatRange(start: string | undefined, end: string | undefined, t: TranslateFn): string {
   if (start && end) return `${start} → ${end}`;
   if (start) return `${start} →`;
   if (end) return `→ ${end}`;
-  return "Dates not set";
+  return t("trips.datesNotSet");
 }
 
 export default function TripsPage() {
   const router = useRouter();
   const session = useSession();
+  const { t } = useLanguage();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export default function TripsPage() {
   async function handleDelete(trip: Trip) {
     if (!session) return;
     const ok = confirm(
-      `Delete trip "${trip.tripName}"? The trip will be archived in Notion (restorable from Notion if needed). Expenses are not deleted and will reference the archived trip ID.`,
+      t("trips.deleteConfirmFmt", { name: trip.tripName }),
     );
     if (!ok) return;
     setDeletingId(trip.tripId);
@@ -104,18 +106,18 @@ export default function TripsPage() {
     return map;
   }, [trips]);
 
-  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
-  if (error) return <Alert tone="accent" title="Couldn't load trips.">{error}</Alert>;
+  if (!session || loading) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("states.loading")}</div>;
+  if (error) return <Alert tone="accent" title={t("errors.couldntLoadTrips")}>{error}</Alert>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <PageHeader
-        eyebrow="TRAVEL · SHARED HOUSE · WEEKEND"
-        title={<>Your <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>trips</em></>}
-        description="A trip is a travel-specific space inside a group — same expenses, different bucket."
+        eyebrow={t("trips.eyebrow")}
+        title={<>{t("trips.title")} <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>{t("trips.titleAccent")}</em></>}
+        description={t("trips.description")}
         actions={
           <ButtonLink href="/trips/new" variant="accent" size="md">
-            + New trip
+            {t("trips.newTrip")}
           </ButtonLink>
         }
       />
@@ -123,15 +125,15 @@ export default function TripsPage() {
       {trips.length === 0 ? (
         <EmptyState
           icon="✈️"
-          title="No trips yet"
-          description="Create your first trip to start tracking expenses on the go."
+          title={t("trips.emptyTitle")}
+          description={t("trips.emptyDesc")}
           ctaHref="/trips/new"
-          ctaLabel="Create your first trip"
+          ctaLabel={t("actions.createFirstTrip")}
         />
       ) : (
         <>
           {grouped.active.length > 0 && (
-            <Section label="Active now" meta={`${grouped.active.length} TRIP${grouped.active.length === 1 ? "" : "S"}`}>
+            <Section label={t("trips.bucketActive")} meta={`${grouped.active.length} TRIP${grouped.active.length === 1 ? "" : "S"}`}>
               {grouped.active.map((t) => (
                 <TripCard
                   key={t.tripId}
@@ -143,7 +145,7 @@ export default function TripsPage() {
             </Section>
           )}
           {grouped.upcoming.length > 0 && (
-            <Section label="Upcoming" meta={`${grouped.upcoming.length} TRIP${grouped.upcoming.length === 1 ? "" : "S"}`}>
+            <Section label={t("trips.bucketUpcoming")} meta={`${grouped.upcoming.length} TRIP${grouped.upcoming.length === 1 ? "" : "S"}`}>
               {grouped.upcoming.map((t) => (
                 <TripCard
                   key={t.tripId}
@@ -155,7 +157,7 @@ export default function TripsPage() {
             </Section>
           )}
           {grouped.past.length > 0 && (
-            <Section label="Past" meta={`${grouped.past.length} TRIP${grouped.past.length === 1 ? "" : "S"}`}>
+            <Section label={t("trips.bucketPast")} meta={`${grouped.past.length} TRIP${grouped.past.length === 1 ? "" : "S"}`}>
               {grouped.past.map((t) => (
                 <TripCard
                   key={t.tripId}
@@ -167,7 +169,7 @@ export default function TripsPage() {
             </Section>
           )}
           {grouped.undated.length > 0 && (
-            <Section label="No dates" meta={`${grouped.undated.length} TRIP${grouped.undated.length === 1 ? "" : "S"}`}>
+            <Section label={t("trips.bucketUndated")} meta={`${grouped.undated.length} TRIP${grouped.undated.length === 1 ? "" : "S"}`}>
               {grouped.undated.map((t) => (
                 <TripCard
                   key={t.tripId}
@@ -205,7 +207,8 @@ function Section({ label, meta, children }: { label: string; meta?: string; chil
 }
 
 function TripCard({ trip, onDelete, deleting }: { trip: Trip; onDelete: () => void; deleting: boolean }) {
-  const day = dayBadge(trip);
+  const { t } = useLanguage();
+  const day = dayBadge(trip, t);
   return (
     <li style={{ position: "relative" }}>
       <Link
@@ -226,7 +229,7 @@ function TripCard({ trip, onDelete, deleting }: { trip: Trip; onDelete: () => vo
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="fxt-eyebrow" style={{ marginBottom: 6 }}>
-              {trip.destination ? trip.destination.toUpperCase() : "TRIP"}
+              {trip.destination ? trip.destination.toUpperCase() : ""}
             </div>
             <div
               style={{
@@ -243,7 +246,7 @@ function TripCard({ trip, onDelete, deleting }: { trip: Trip; onDelete: () => vo
               {trip.tripName}
             </div>
             <div className="fxt-mono" style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6, letterSpacing: "0.04em" }}>
-              {formatRange(trip.startDate, trip.endDate).toUpperCase()}
+              {formatRange(trip.startDate, trip.endDate, t).toUpperCase()}
             </div>
           </div>
           <Badge tone={day.tone} size="sm">{day.label}</Badge>
@@ -261,13 +264,13 @@ function TripCard({ trip, onDelete, deleting }: { trip: Trip; onDelete: () => vo
             color: "var(--color-ink-2)",
           }}
         >
-          <span>Base <strong className="fxt-mono" style={{ color: "var(--color-ink)" }}>{trip.baseCurrency}</strong></span>
+          <span>{t("trips.base")} <strong className="fxt-mono" style={{ color: "var(--color-ink)" }}>{trip.baseCurrency}</strong></span>
           {typeof trip.budget === "number" ? (
             <span className="fxt-mono" style={{ color: "var(--color-ink-3)" }}>
-              BUDGET {trip.budget.toLocaleString()}
+              {t("trips.budgetPrefix")} {trip.budget.toLocaleString()}
             </span>
           ) : (
-            <span style={{ color: "var(--color-ink-3)" }}>No budget</span>
+            <span style={{ color: "var(--color-ink-3)" }}>{t("trips.noBudget")}</span>
           )}
         </div>
       </Link>
@@ -275,7 +278,7 @@ function TripCard({ trip, onDelete, deleting }: { trip: Trip; onDelete: () => vo
         type="button"
         onClick={onDelete}
         disabled={deleting}
-        aria-label={`Delete trip ${trip.tripName}`}
+        aria-label={t("trips.deleteAria", { name: trip.tripName })}
         className="fxt-focus"
         style={{
           position: "absolute",
@@ -294,7 +297,7 @@ function TripCard({ trip, onDelete, deleting }: { trip: Trip; onDelete: () => vo
           alignItems: "center",
           justifyContent: "center",
         }}
-        title="Delete trip"
+        title={t("trips.deleteTitle")}
       >
         {deleting ? "…" : "✕"}
       </button>

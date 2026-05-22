@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { setSession } from "@/lib/session";
 import { CURRENCIES } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n";
 import { Card, Button, TextField, Alert } from "@/components/ui";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [username, setUsername] = useState("");
   const [pin, setPin] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
@@ -18,8 +20,12 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!/^\d{4}$/.test(pin)) {
+      setError(t("register.errorInvalidPin"));
+      return;
+    }
     if (pin !== pinConfirm) {
-      setError("PIN entries don't match.");
+      setError(t("register.errorPinMismatch"));
       return;
     }
     setSubmitting(true);
@@ -30,64 +36,93 @@ export default function RegisterPage() {
         body: JSON.stringify({ username, pin, baseCurrency }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Registration failed");
+      if (!res.ok) throw new Error(data.error || t("register.errorGeneric"));
       setSession(data.session);
       router.push("/parties");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : t("register.errorUnknown"));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div style={{ maxWidth: 460, margin: "min(5vh, 40px) auto 0" }}>
-      <Card padding={28}>
-        <div className="fxt-eyebrow" style={{ marginBottom: 8 }}>GET STARTED</div>
+    <div style={{ maxWidth: 460, margin: "min(5vh, 40px) auto 0", display: "flex", flexDirection: "column", gap: 20 }}>
+      <header style={{ textAlign: "center" }}>
+        <div
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: 32,
+            lineHeight: 1,
+            color: "var(--color-ink)",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {t("brand.name")}
+        </div>
+        <div
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: 16,
+            color: "var(--color-ink)",
+            marginTop: 10,
+            lineHeight: 1.4,
+          }}
+        >
+          {t("hero.tagline")}
+        </div>
+        <div style={{ fontSize: 13, color: "var(--color-ink-3)", marginTop: 4, lineHeight: 1.5 }}>
+          {t("hero.subtext")}
+        </div>
+      </header>
+
+      <Card padding={24}>
+        <div className="fxt-eyebrow" style={{ marginBottom: 8 }}>{t("register.eyebrow")}</div>
         <h1
           className="fxt-display"
-          style={{ fontSize: 32, margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
+          style={{ fontSize: 28, margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
         >
-          Create your account
+          {t("register.title")}
         </h1>
-        <p style={{ color: "var(--color-ink-2)", fontSize: 14, margin: "8px 0 20px" }}>
-          We&apos;ll set up a private <strong style={{ color: "var(--color-ink)" }}>Personal</strong> group for you so you can start adding expenses right away.
+        <p style={{ color: "var(--color-ink-2)", fontSize: 14, margin: "8px 0 8px" }}>
+          {t("register.subtitle")}
+        </p>
+        <p style={{ color: "var(--color-ink-3)", fontSize: 13, margin: "0 0 18px", lineHeight: 1.5 }}>
+          {t("register.personalNote")}
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {error && <Alert tone="accent" title="Couldn't create your account.">{error}</Alert>}
+          {error && <Alert tone="accent" title={t("register.errorTitle")}>{error}</Alert>}
 
           <TextField
-            label="Username"
+            label={t("register.username")}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
             required
             autoFocus
-            helper="3–30 characters: letters, digits, underscore."
+            helper={t("register.usernameHelper")}
           />
 
           <TextField
-            label="PIN"
+            label={t("register.pin")}
             inputMode="numeric"
-            pattern="\d{4}"
             maxLength={4}
             type="password"
             value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
             autoComplete="new-password"
             required
-            helper="4 digits — you&rsquo;ll use this to log in."
+            helper={t("register.pinHelper")}
           />
 
           <TextField
-            label="Confirm PIN"
+            label={t("register.confirmPin")}
             inputMode="numeric"
-            pattern="\d{4}"
             maxLength={4}
             type="password"
             value={pinConfirm}
-            onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, ""))}
+            onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 4))}
             required
           />
 
@@ -104,7 +139,7 @@ export default function RegisterPage() {
               }}
               htmlFor="register-currency"
             >
-              Base currency
+              {t("register.baseCurrency")}
             </label>
             <div
               style={{
@@ -139,18 +174,18 @@ export default function RegisterPage() {
               </select>
             </div>
             <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 6 }}>
-              Dashboards convert other currencies to this one.
+              {t("register.baseCurrencyHelper")}
             </div>
           </div>
 
           <Button type="submit" disabled={submitting} variant="primary" size="lg" full>
-            {submitting ? "Creating account…" : "Create account"}
+            {submitting ? t("register.submitting") : t("register.submit")}
           </Button>
 
           <p style={{ fontSize: 13, color: "var(--color-ink-2)", margin: 0, textAlign: "center" }}>
-            Already have one?{" "}
+            {t("register.haveAccount")}{" "}
             <Link href="/login" style={{ color: "var(--color-accent-ink)", textDecoration: "underline", textUnderlineOffset: 3 }}>
-              Log in
+              {t("register.login")}
             </Link>
           </p>
         </form>

@@ -5,8 +5,10 @@ import {
   retryPendingSync,
   type PendingExpense,
 } from "@/lib/pendingSync";
+import { useLanguage } from "@/lib/i18n";
 
 export default function PendingSyncNotice() {
+  const { t } = useLanguage();
   const [pending, setPending] = useState<PendingExpense[]>([]);
   const [retrying, setRetrying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -36,9 +38,10 @@ export default function PendingSyncNotice() {
     setMessage(null);
     try {
       const r = await retryPendingSync();
-      if (r.succeeded > 0 && r.failed === 0) setMessage(`Synced ${r.succeeded} expense${r.succeeded === 1 ? "" : "s"}.`);
-      else if (r.succeeded > 0 && r.failed > 0) setMessage(`Synced ${r.succeeded}, ${r.failed} still failing.`);
-      else if (r.succeeded === 0 && r.failed > 0) setMessage(`Could not sync — ${r.failed} expense${r.failed === 1 ? "" : "s"} still pending.`);
+      const plural = (n: number) => (n === 1 ? "" : "s");
+      if (r.succeeded > 0 && r.failed === 0) setMessage(t("pendingSync.syncedFmt", { n: r.succeeded, s: plural(r.succeeded) }));
+      else if (r.succeeded > 0 && r.failed > 0) setMessage(t("pendingSync.partialFmt", { ok: r.succeeded, fail: r.failed }));
+      else if (r.succeeded === 0 && r.failed > 0) setMessage(t("pendingSync.failedFmt", { n: r.failed, s: plural(r.failed) }));
       refresh();
     } finally {
       setRetrying(false);
@@ -46,10 +49,11 @@ export default function PendingSyncNotice() {
   }
 
   if (pending.length === 0) return null;
+  const sSuffix = pending.length === 1 ? "" : "s";
   return (
     <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-md p-3 text-sm flex items-center gap-3 flex-wrap">
       <span className="font-medium">
-        {pending.length} expense{pending.length === 1 ? "" : "s"} waiting to sync
+        {t("pendingSync.waitingFmt", { n: pending.length, s: sSuffix })}
       </span>
       {message && <span className="text-xs text-amber-800">{message}</span>}
       <button
@@ -58,7 +62,7 @@ export default function PendingSyncNotice() {
         disabled={retrying}
         className="ml-auto text-xs px-3 py-1 rounded border border-amber-300 bg-white text-amber-900 disabled:opacity-50"
       >
-        {retrying ? "Retrying…" : "Retry sync"}
+        {retrying ? t("pendingSync.retrying") : t("pendingSync.retry")}
       </button>
     </div>
   );

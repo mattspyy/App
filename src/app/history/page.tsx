@@ -9,6 +9,7 @@ import RefreshButton from "@/components/RefreshButton";
 import PullToRefreshIndicator from "@/components/PullToRefreshIndicator";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PageHeader, SelectChip, TextField, Card, Alert, Badge } from "@/components/ui";
+import { useLanguage, categoryLabel } from "@/lib/i18n";
 
 type DayGroup = {
   date: string;
@@ -52,6 +53,7 @@ function HistoryInner() {
   const router = useRouter();
   const params = useSearchParams();
   const session = useSession();
+  const { t, language } = useLanguage();
   const [records, setRecords] = useState<ExpenseRecord[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [partyId, setPartyId] = useState<string>(params.get("partyId") || "");
@@ -121,10 +123,10 @@ function HistoryInner() {
 
   const groups = useMemo(() => groupByDate(filtered, baseCurrency), [filtered, baseCurrency]);
 
-  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
+  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("states.loading")}</div>;
   if (error)
     return (
-      <Alert tone="accent" title="Couldn't load expenses.">
+      <Alert tone="accent" title={t("errors.couldntLoadExpenses")}>
         {error}
       </Alert>
     );
@@ -144,9 +146,9 @@ function HistoryInner() {
       <PullToRefreshIndicator pulling={pulling} distance={distance} refreshing={refreshing} />
 
       <PageHeader
-        eyebrow={currentGroupName ? `IN GROUP · ${currentGroupName.toUpperCase()}` : "EVERY EXPENSE, BY DAY"}
-        title={<>Your <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>expenses</em></>}
-        description="Grouped by day, with totals in your display currency."
+        eyebrow={currentGroupName ? t("history.headerInGroupFmt", { name: currentGroupName.toUpperCase() }) : t("history.headerEyebrow")}
+        title={<>{t("history.title")} <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>{t("history.titleAccent")}</em></>}
+        description={t("history.description")}
         actions={<RefreshButton onClick={trigger} refreshing={refreshing} />}
       />
 
@@ -154,31 +156,31 @@ function HistoryInner() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
           <div style={{ flex: "1 1 220px", minWidth: 220 }}>
             <TextField
-              label="Search"
-              placeholder="Merchant, notes, or country"
+              label={t("common.search")}
+              placeholder={t("history.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <SelectChip label="Group" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
-              <option value="">— Pick a group —</option>
+            <SelectChip label={t("history.filterGroup")} value={partyId} onChange={(e) => setPartyId(e.target.value)}>
+              <option value="">{t("history.pickGroup")}</option>
               {parties.map((p) => (
                 <option key={p.partyId} value={p.partyId}>
                   {p.partyName}
                 </option>
               ))}
             </SelectChip>
-            <SelectChip label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option value="">All categories</option>
+            <SelectChip label={t("history.filterCategory")} value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="">{t("history.allCategories")}</option>
               {EXPENSE_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {categoryLabel(c, language)}
                 </option>
               ))}
             </SelectChip>
-            <SelectChip label="Payer" value={user} onChange={(e) => setUser(e.target.value)}>
-              <option value="">All members</option>
+            <SelectChip label={t("history.filterPayer")} value={user} onChange={(e) => setUser(e.target.value)}>
+              <option value="">{t("history.allMembers")}</option>
               {users.map((u) => (
                 <option key={u} value={u}>
                   {u}
@@ -203,7 +205,7 @@ function HistoryInner() {
             }}
           >
             <Badge tone="neutral" size="sm">
-              {filtered.length} of {records.length}
+              {t("history.filteredOfFmt", { shown: filtered.length, total: records.length })}
             </Badge>
             {filteredTotal > 0 && (
               <span className="fxt-mono" style={{ color: "var(--color-ink-2)" }}>
@@ -217,16 +219,16 @@ function HistoryInner() {
       {!hasAnyRecords ? (
         <EmptyState
           icon="📋"
-          title="No expenses yet"
-          description="Scan a receipt or add your first expense to see it grouped by day here."
+          title={t("history.emptyTitle")}
+          description={t("history.emptyDesc")}
           ctaHref="/scan"
-          ctaLabel="Add an expense"
+          ctaLabel={t("actions.addExpense")}
         />
       ) : noMatch ? (
         <EmptyState
           icon="🔍"
-          title="No expenses match"
-          description="Try clearing a filter or searching for a different merchant."
+          title={t("history.noMatchTitle")}
+          description={t("history.noMatchDesc")}
         />
       ) : (
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 22 }}>
@@ -256,6 +258,7 @@ function HistoryInner() {
 }
 
 function DayHeader({ group }: { group: DayGroup }) {
+  const { t } = useLanguage();
   const currencyParts = Object.entries(group.totalsByCurrency);
   const primary =
     currencyParts.length === 1
@@ -289,7 +292,7 @@ function DayHeader({ group }: { group: DayGroup }) {
           className="fxt-mono"
           style={{ fontSize: 10.5, color: "var(--color-ink-3)", letterSpacing: "0.08em", marginTop: 2 }}
         >
-          {group.count} EXPENSE{group.count === 1 ? "" : "S"}
+          {group.count} {group.count === 1 ? t("history.daySingular") : t("history.dayPlural")}
         </div>
       </div>
       <div style={{ textAlign: "right", minWidth: 0 }}>
