@@ -217,3 +217,7 @@ src/
 - PDF export, native mobile app
 - Trip cover image upload (banner is a gradient placeholder)
 - In-app calendar view
+
+## Changelog / Development Log
+
+- **2026-05-22** — UI planning review of current codebase completed (no code changes). Captured pages, routes, data dependencies, states, and design checklist as input for the upcoming full UI redesign phase.
