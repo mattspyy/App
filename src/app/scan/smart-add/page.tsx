@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session";
+import { Card, Button, Alert } from "@/components/ui";
 
 const PLACEHOLDER_EXAMPLES = [
   "Coffee 42 cash",
@@ -31,7 +32,7 @@ function SmartAddInner() {
     if (!session) router.replace("/login");
   }, [session, router]);
 
-  if (!session) return <div className="text-sm text-zinc-500">Loading…</div>;
+  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,9 +59,7 @@ function SmartAddInner() {
       if (res.status === 429) {
         const body = await res.json().catch(() => ({}));
         console.error("/api/smart-add 429", body);
-        setError(
-          "You've made several requests recently. Please wait a moment and try again.",
-        );
+        setError("You've made several requests recently. Please wait a moment and try again.");
         setBusy(false);
         return;
       }
@@ -87,64 +86,159 @@ function SmartAddInner() {
     }
   }
 
+  if (busy) {
+    return (
+      <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
+        <div className="fxt-eyebrow">PARSING WITH AI</div>
+        <h1
+          className="fxt-display"
+          style={{ fontSize: 32, margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
+        >
+          Reading your line…
+        </h1>
+        <Card padding={18} tone="soft">
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <span
+              aria-hidden
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 999,
+                border: "2px solid var(--color-line)",
+                borderTopColor: "var(--color-accent)",
+                animation: "spin 0.9s linear infinite",
+                flexShrink: 0,
+              }}
+            />
+            <div style={{ fontSize: 14, color: "var(--color-ink-2)" }}>
+              Extracting merchant, amount, payer, and split. You&apos;ll confirm everything before saving.
+            </div>
+          </div>
+        </Card>
+        <Card padding={16}>
+          <div className="fxt-eyebrow" style={{ marginBottom: 8 }}>YOU TYPED</div>
+          <div style={{ fontFamily: "var(--font-serif)", fontSize: 16, color: "var(--color-ink)", lineHeight: 1.5 }}>
+            “{text}”
+          </div>
+        </Card>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
-      <div className="text-xs text-zinc-500">
-        <Link href={`/scan${confirmQuery}`} className="underline">Add expense</Link> /
+    <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+        <Link href={`/scan${confirmQuery}`} style={{ color: "var(--color-ink-2)", textDecoration: "none" }}>
+          ← Add expense
+        </Link>
       </div>
-      <h1 className="text-2xl font-semibold">Smart Add</h1>
-      <p className="text-sm text-zinc-500">
-        Type one short line — merchant, amount, who paid, and who to split with.
-        AI fills the rest; you review before saving.
-      </p>
 
-      {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded">{error}</div>}
+      <header>
+        <div className="fxt-eyebrow">SMART ADD</div>
+        <h1
+          className="fxt-display"
+          style={{ fontSize: "clamp(28px, 4.6vw, 40px)", margin: "8px 0 6px", lineHeight: 1.1, letterSpacing: "-0.015em" }}
+        >
+          Type one line, we&apos;ll fill the form.
+        </h1>
+        <p style={{ color: "var(--color-ink-2)", fontSize: 14, margin: 0, maxWidth: "56ch" }}>
+          Mention merchant, amount, who paid, and who to split with. AI fills the rest — you review every field before saving.
+        </p>
+      </header>
 
-      <label className="block">
-        <span className="text-xs text-zinc-600">Describe the spend</span>
-        <textarea
-          className="input mt-1 min-h-[7rem]"
-          placeholder={PLACEHOLDER_EXAMPLES[0]}
-          value={text}
-          maxLength={500}
-          onChange={(e) => setText(e.target.value)}
-          disabled={busy}
-          autoFocus
-        />
-      </label>
+      {error && <Alert tone="accent" title="That didn't work.">{error}</Alert>}
 
-      <div className="text-xs text-zinc-500 space-y-1">
-        <div className="font-medium text-zinc-600">Examples</div>
-        <ul className="list-disc pl-4 space-y-0.5">
+      <Card padding={18}>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <label style={{ display: "block" }}>
+            <span
+              style={{
+                display: "block",
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "var(--color-ink-3)",
+                marginBottom: 6,
+              }}
+            >
+              Describe the spend
+            </span>
+            <textarea
+              className="fxt-focus"
+              placeholder={PLACEHOLDER_EXAMPLES[0]}
+              value={text}
+              maxLength={500}
+              onChange={(e) => setText(e.target.value)}
+              disabled={busy}
+              autoFocus
+              style={{
+                width: "100%",
+                minHeight: "8rem",
+                background: "var(--color-surface)",
+                border: "1px solid var(--color-line)",
+                borderRadius: "var(--radius-md)",
+                padding: "12px 14px",
+                fontSize: 15,
+                lineHeight: 1.5,
+                fontFamily: "var(--font-sans)",
+                color: "var(--color-ink)",
+                resize: "vertical",
+                outline: "none",
+              }}
+            />
+          </label>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <span className="fxt-mono" style={{ fontSize: 11, color: "var(--color-ink-3)" }}>
+              {text.length}/500
+            </span>
+          </div>
+
+          <Button type="submit" disabled={busy || !text.trim()} variant="accent" size="lg" full>
+            ✨ Parse and review
+          </Button>
+        </form>
+      </Card>
+
+      <section>
+        <div className="fxt-eyebrow" style={{ marginBottom: 10 }}>EXAMPLES</div>
+        <div style={{ display: "grid", gap: 8 }}>
           {PLACEHOLDER_EXAMPLES.map((ex) => (
-            <li key={ex}>
-              <button
-                type="button"
-                onClick={() => setText(ex)}
-                disabled={busy}
-                className="text-left hover:text-zinc-900 underline decoration-dotted"
-              >
-                {ex}
-              </button>
-            </li>
+            <button
+              key={ex}
+              type="button"
+              onClick={() => setText(ex)}
+              disabled={busy}
+              className="fxt-focus"
+              style={{
+                textAlign: "left",
+                padding: "12px 14px",
+                background: "var(--color-surface)",
+                border: "1px solid var(--color-line)",
+                borderRadius: "var(--radius-md)",
+                fontFamily: "var(--font-serif)",
+                fontSize: 14,
+                color: "var(--color-ink)",
+                cursor: "pointer",
+                transition: "border-color 120ms ease, background 120ms ease",
+              }}
+            >
+              <span style={{ color: "var(--color-ink-3)", marginRight: 8 }} aria-hidden>“</span>
+              {ex}
+              <span style={{ color: "var(--color-ink-3)", marginLeft: 4 }} aria-hidden>”</span>
+            </button>
           ))}
-        </ul>
-      </div>
-
-      <button
-        type="submit"
-        disabled={busy || !text.trim()}
-        className="w-full p-4 rounded-xl bg-zinc-900 text-white font-medium hover:bg-zinc-800 transition disabled:opacity-50"
-      >
-        {busy ? "Parsing with AI…" : "✨ Parse and review"}
-      </button>
-    </form>
+        </div>
+      </section>
+    </div>
   );
 }
 
 export default function SmartAddPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-zinc-500">Loading…</div>}>
+    <Suspense fallback={<div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>}>
       <SmartAddInner />
     </Suspense>
   );

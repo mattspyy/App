@@ -21,6 +21,17 @@ import {
   type SplitType,
   type Trip,
 } from "@/lib/types";
+import {
+  Card,
+  Alert,
+  Button,
+  TextField,
+  BottomActionBar,
+  SectionHeader,
+  Badge,
+} from "@/components/ui";
+
+// ---------- Types & form state ----------
 
 type FormItem = {
   id: string;
@@ -56,6 +67,21 @@ type FormState = {
   aiConfidence?: number;
   items: FormItem[];
 };
+
+type SmartAddHints = {
+  payerName?: string | null;
+  splitType?: SplitType | null;
+  participantNames?: string[];
+};
+
+type PendingExpense = {
+  analysis: AIAnalysisResult;
+  imageUrl?: string;
+  sourceType: SourceType;
+  hints?: SmartAddHints;
+};
+
+// ---------- Pure helpers ----------
 
 function newItemId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -139,19 +165,6 @@ function buildInitialForm(
   }
 }
 
-type SmartAddHints = {
-  payerName?: string | null;
-  splitType?: SplitType | null;
-  participantNames?: string[];
-};
-
-type PendingExpense = {
-  analysis: AIAnalysisResult;
-  imageUrl?: string;
-  sourceType: SourceType;
-  hints?: SmartAddHints;
-};
-
 function readPendingHints(): SmartAddHints | null {
   if (typeof window === "undefined") return null;
   const raw = sessionStorage.getItem("fxt.pendingExpense");
@@ -165,7 +178,7 @@ function readPendingHints(): SmartAddHints | null {
 }
 
 function normalizeName(s: string): string {
-  return s.trim().toLowerCase().replace(/[^a-z0-9\u00C0-\uFFFF\s]/g, "");
+  return s.trim().toLowerCase().replace(/[^a-z0-9À-￿\s]/g, "");
 }
 
 function matchKnownUser(
@@ -188,6 +201,8 @@ function matchKnownUser(
   return null;
 }
 
+// ---------- Top-level entrypoint ----------
+
 function ConfirmInner() {
   const router = useRouter();
   const params = useSearchParams();
@@ -200,7 +215,7 @@ function ConfirmInner() {
     if (!session) router.replace("/login");
   }, [session, router]);
 
-  if (!session) return <div className="text-sm text-zinc-500">Loading…</div>;
+  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
   return (
     <ConfirmFormBody
       key={`${isManual ? "manual" : "ai"}|party=${partyId}|trip=${tripId}`}
@@ -211,6 +226,8 @@ function ConfirmInner() {
     />
   );
 }
+
+// ---------- The big form ----------
 
 function ConfirmFormBody({
   session,
@@ -224,14 +241,18 @@ function ConfirmFormBody({
   initialTripId: string;
 }) {
   const router = useRouter();
-  const [form, setForm] = useState<FormState | null>(() => buildInitialForm(session, isManual, initialGroupId, initialTripId));
+  const [form, setForm] = useState<FormState | null>(() =>
+    buildInitialForm(session, isManual, initialGroupId, initialTripId),
+  );
   const [parties, setParties] = useState<Party[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [customMethods, setCustomMethods] = useState<string[]>([]);
   const [showAddMethod, setShowAddMethod] = useState(false);
   const [newMethodName, setNewMethodName] = useState("");
   const [addingMethod, setAddingMethod] = useState(false);
-  const [categoryRules, setCategoryRules] = useState<Array<{ id: string; merchantKeyword: string; category: ExpenseCategory }>>([]);
+  const [categoryRules, setCategoryRules] = useState<
+    Array<{ id: string; merchantKeyword: string; category: ExpenseCategory }>
+  >([]);
   const [categoryTouched, setCategoryTouched] = useState(false);
   const [savingRule, setSavingRule] = useState(false);
   const [ruleSaved, setRuleSaved] = useState(false);
@@ -241,7 +262,9 @@ function ConfirmFormBody({
   const [membersLoaded, setMembersLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [duplicates, setDuplicates] = useState<Array<{ id: string; merchant?: string; amount: number; currency: string; date: string }>>([]);
+  const [duplicates, setDuplicates] = useState<
+    Array<{ id: string; merchant?: string; amount: number; currency: string; date: string }>
+  >([]);
   const [savedRedirect, setSavedRedirect] = useState<string | null>(null);
 
   useEffect(() => {
@@ -253,7 +276,7 @@ function ConfirmFormBody({
       .then((r) => (r.ok ? r.json() : { trips: [] }))
       .then((b) => setTrips(b.trips || []))
       .catch(() => setTrips([]));
-      fetch(`/api/payment-methods?userId=${encodeURIComponent(session.userId)}`)
+    fetch(`/api/payment-methods?userId=${encodeURIComponent(session.userId)}`)
       .then((r) => (r.ok ? r.json() : { methods: [] }))
       .then((b) => setCustomMethods(b.methods || []))
       .catch(() => setCustomMethods([]));
@@ -293,7 +316,9 @@ function ConfirmFormBody({
     if (!groupId) return;
     let cancelled = false;
     setMembersLoaded(false);
-    fetch(`/api/parties/${encodeURIComponent(groupId)}/members?userId=${encodeURIComponent(session.userId)}`)
+    fetch(
+      `/api/parties/${encodeURIComponent(groupId)}/members?userId=${encodeURIComponent(session.userId)}`,
+    )
       .then((r) => (r.ok ? r.json() : { members: [] }))
       .then((b) => {
         if (cancelled) return;
@@ -322,12 +347,8 @@ function ConfirmFormBody({
     }
   }, [form, trips]);
 
-  // Personal-group fallback: if the user landed here with no group context
-  // (no URL partyId, no tripId-resolved parent), default to their Personal
-  // group. Resolution criteria match the server-side helper: a private party
-  // they own whose name is "Personal" (earliest if duplicates ever exist).
-  // If no Personal group is found, groupId stays empty and the submit guard
-  // will require manual selection.
+  // Personal-group fallback: default to the user's Personal group when there's
+  // no explicit group/trip context (mirrors server-side helper).
   useEffect(() => {
     if (!form) return;
     if (form.groupId || form.tripId) return;
@@ -389,8 +410,8 @@ function ConfirmFormBody({
     }
   }
 
-    // Smart Add: resolve raw payer/participant names into structured form fields
-  // once group membership has loaded. Runs at most once per pending expense.
+  // Smart Add: resolve raw payer/participant names into structured fields once
+  // group membership has loaded. Runs at most once per pending expense.
   const [pendingHints, setPendingHints] = useState<SmartAddHints | null>(() =>
     isManual ? null : readPendingHints(),
   );
@@ -411,8 +432,8 @@ function ConfirmFormBody({
       setPendingHints(null);
       return;
     }
-    if (!form.groupId) return; // wait for group resolution
-    if (!membersLoaded) return; // wait for the members fetch to finish
+    if (!form.groupId) return;
+    if (!membersLoaded) return;
 
     hintsAppliedRef.current = true;
     const unmatched: string[] = [];
@@ -445,8 +466,6 @@ function ConfirmFormBody({
       }
     }
 
-    // Resolve splitType. custom_amount is downgraded to equal_split because the
-    // AI doesn't surface per-person amounts; surface the ambiguity as guidance.
     let nextSplitType: SplitType = form.splitType;
     if (pendingHints.splitType === "no_split") {
       nextSplitType = "no_split";
@@ -457,7 +476,6 @@ function ConfirmFormBody({
       guidance.push("Custom split amounts mentioned — review participant shares");
     }
 
-    // For equal_split, include the payer in participants unless explicitly excluded.
     let nextParticipantIds = form.participantIds;
     if (nextSplitType === "equal_split") {
       const combined = [...matchedParticipantIds];
@@ -510,8 +528,8 @@ function ConfirmFormBody({
   function setGroup(groupId: string) {
     setForm((f) => {
       if (!f) return f;
-      // Clear trip if the chosen group doesn't own it.
-      const stillValidTrip = f.tripId && trips.some((t) => t.tripId === f.tripId && t.familyId === groupId);
+      const stillValidTrip =
+        f.tripId && trips.some((t) => t.tripId === f.tripId && t.familyId === groupId);
       return { ...f, groupId, tripId: stillValidTrip ? f.tripId : "" };
     });
   }
@@ -543,13 +561,18 @@ function ConfirmFormBody({
       return;
     }
     if (form.splitType === "custom_amount") {
-      const sum = form.participantIds.reduce((s2, id) => s2 + (Number(form.customShares[id]) || 0), 0);
+      const sum = form.participantIds.reduce(
+        (s2, id) => s2 + (Number(form.customShares[id]) || 0),
+        0,
+      );
       if (form.participantIds.length === 0) {
         setError("Pick at least one participant for a custom split");
         return;
       }
       if (Math.abs(sum - amt) > 0.5) {
-        setError(`Custom shares (${sum.toFixed(2)}) must add up to the total amount (${amt.toFixed(2)})`);
+        setError(
+          `Custom shares (${sum.toFixed(2)}) must add up to the total amount (${amt.toFixed(2)})`,
+        );
         return;
       }
     }
@@ -583,8 +606,10 @@ function ConfirmFormBody({
             : buildParticipants(form, amt, knownUsers),
         items: buildItems(form),
         expenseType: form.expenseType,
-        spreadStartDate: form.expenseType === "spread_across_days" ? form.spreadStartDate || undefined : undefined,
-        spreadEndDate: form.expenseType === "spread_across_days" ? form.spreadEndDate || undefined : undefined,
+        spreadStartDate:
+          form.expenseType === "spread_across_days" ? form.spreadStartDate || undefined : undefined,
+        spreadEndDate:
+          form.expenseType === "spread_across_days" ? form.spreadEndDate || undefined : undefined,
       };
       const result = await saveExpenseWithOfflineFallback(payload);
       sessionStorage.removeItem("fxt.pendingExpense");
@@ -596,7 +621,15 @@ function ConfirmFormBody({
         setTimeout(() => router.push(redirectTo), 1200);
         return;
       }
-      const data = result.data as { duplicates?: Array<{ id: string; merchant?: string; amount: number; currency: string; date: string }> };
+      const data = result.data as {
+        duplicates?: Array<{
+          id: string;
+          merchant?: string;
+          amount: number;
+          currency: string;
+          date: string;
+        }>;
+      };
       const dupes = Array.isArray(data.duplicates) ? data.duplicates : [];
       if (dupes.length > 0) {
         setDuplicates(dupes);
@@ -611,343 +644,522 @@ function ConfirmFormBody({
     }
   }
 
-  if (!form) return <div className="text-sm text-zinc-500">Loading…</div>;
+  if (!form) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
 
   const lowConfidence = form.aiConfidence != null && form.aiConfidence < CONFIDENCE_THRESHOLD;
-  const missingFields = form.aiConfidence != null
-    ? [
-        !form.merchant.trim() && "merchant",
-        !form.amount.trim() && "amount",
-        !form.date.trim() && "date",
-      ].filter((x): x is string => Boolean(x))
-    : [];
+  const missingFields =
+    form.aiConfidence != null
+      ? [
+          !form.merchant.trim() && "merchant",
+          !form.amount.trim() && "amount",
+          !form.date.trim() && "date",
+        ].filter((x): x is string => Boolean(x))
+      : [];
   const tripsForGroup = form.groupId ? trips.filter((t) => t.familyId === form.groupId) : [];
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
-      <h1 className="text-2xl font-semibold">{isManual ? "Manual add" : "Confirm expense"}</h1>
+    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720, margin: "0 auto" }}>
+      <header style={{ marginBottom: 4 }}>
+        <div className="fxt-eyebrow" style={{ marginBottom: 8 }}>
+          {isManual ? "MANUAL ADD" : form.sourceType === "smart_add" ? "REVIEW SMART ADD" : "REVIEW AI EXTRACTION"}
+        </div>
+        <h1
+          className="fxt-display"
+          style={{ fontSize: "clamp(28px, 4.6vw, 36px)", margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
+        >
+          {isManual ? "Add this expense" : "Confirm and save"}
+        </h1>
+        <p style={{ color: "var(--color-ink-2)", fontSize: 13, margin: "8px 0 0", maxWidth: "56ch" }}>
+          Nothing is saved until you tap <strong style={{ color: "var(--color-ink)" }}>Save</strong>. Tweak anything that looks wrong.
+        </p>
+      </header>
 
       {form.aiConfidence != null && (
-        <div className={`text-xs px-3 py-2 rounded ${lowConfidence ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}>
-          AI confidence: {(form.aiConfidence * 100).toFixed(0)}%
-          {lowConfidence && " — low confidence, please review carefully"}
-        </div>
+        lowConfidence ? (
+          <Alert tone="amber" title={`AI confidence: ${(form.aiConfidence * 100).toFixed(0)}%`}>
+            Low confidence — please review carefully before saving.
+          </Alert>
+        ) : (
+          <Alert tone="sage" title={`AI confidence: ${(form.aiConfidence * 100).toFixed(0)}%`}>
+            Looks good. Quick review and you&apos;re done.
+          </Alert>
+        )
       )}
+
       {missingFields.length > 0 && (
-        <div className="text-xs px-3 py-2 rounded bg-amber-50 text-amber-800 border border-amber-200">
-          AI couldn&apos;t fill: {missingFields.join(", ")}. Please complete before saving.
-        </div>
+        <Alert tone="amber" title="A few fields need your input.">
+          AI couldn&apos;t fill: <strong>{missingFields.join(", ")}</strong>. Please complete before saving.
+        </Alert>
       )}
 
       {duplicates.length > 0 && savedRedirect && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 p-3 text-sm space-y-2">
-          <div className="font-medium">Saved, but a possible duplicate was detected.</div>
-          <ul className="list-disc pl-5 space-y-0.5">
+        <Alert tone="amber" title="Saved — but this looks similar to an existing expense.">
+          <ul style={{ margin: "6px 0 10px", paddingLeft: 18, lineHeight: 1.5 }}>
             {duplicates.slice(0, 3).map((d) => (
               <li key={d.id}>
                 {d.merchant || "—"} · {d.amount.toFixed(2)} {d.currency} · {d.date}
               </li>
             ))}
           </ul>
-          <button
-            type="button"
-            onClick={() => router.push(savedRedirect)}
-            className="px-3 py-1.5 rounded-md border border-amber-400 bg-white text-amber-900 text-xs"
-          >
+          <Button type="button" variant="secondary" size="sm" onClick={() => router.push(savedRedirect)}>
             Got it, continue
-          </button>
-        </div>
+          </Button>
+        </Alert>
       )}
+
       {form.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={form.imageUrl} alt="receipt" className="max-h-48 rounded border border-zinc-200" />
+        <Card padding={0} tone="soft">
+          <div style={{ display: "flex", justifyContent: "center", padding: 12 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={form.imageUrl}
+              alt="Receipt"
+              style={{ maxHeight: 200, width: "auto", borderRadius: 8, objectFit: "contain" }}
+            />
+          </div>
+        </Card>
       )}
 
-      {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded">{error}</div>}
+      {error && <Alert tone="accent" title="Couldn't save that.">{error}</Alert>}
 
-      <Field label="Group">
-        <select className="input" value={form.groupId} onChange={(e) => setGroup(e.target.value)} required>
-          <option value="">— Pick a group —</option>
-          {parties.map((p) => <option key={p.partyId} value={p.partyId}>{p.partyName}</option>)}
-        </select>
-      </Field>
+      {/* ESSENTIALS */}
+      <section>
+        <SectionHeader title="Essentials" />
+        <Card padding={18}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Field label="Group">
+              <NativeSelect
+                value={form.groupId}
+                onChange={(e) => setGroup(e.target.value)}
+                required
+              >
+                <option value="">— Pick a group —</option>
+                {parties.map((p) => (
+                  <option key={p.partyId} value={p.partyId}>
+                    {p.partyName}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
 
-      <Field label="Trip (optional)">
-        <select
-          className="input"
-          value={form.tripId}
-          onChange={(e) => update("tripId", e.target.value)}
-          disabled={!form.groupId}
-        >
-          <option value="">— No trip —</option>
-          {tripsForGroup.map((t) => <option key={t.tripId} value={t.tripId}>{t.tripName}</option>)}
-        </select>
-      </Field>
+            {tripsForGroup.length > 0 && (
+              <Field label="Trip (optional)">
+                <NativeSelect
+                  value={form.tripId}
+                  onChange={(e) => update("tripId", e.target.value)}
+                  disabled={!form.groupId}
+                >
+                  <option value="">— No trip —</option>
+                  {tripsForGroup.map((t) => (
+                    <option key={t.tripId} value={t.tripId}>
+                      {t.tripName}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            )}
 
-      <Field label="Merchant"><input className="input" value={form.merchant} onChange={(e) => update("merchant", e.target.value)} /></Field>
+            <TextField
+              label="Merchant"
+              value={form.merchant}
+              onChange={(e) => update("merchant", e.target.value)}
+              placeholder="e.g. Inoda Coffee"
+            />
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Amount"><input className="input" inputMode="decimal" value={form.amount} onChange={(e) => update("amount", e.target.value)} required /></Field>
-        <Field label="Currency">
-          <select className="input" value={form.currency} onChange={(e) => update("currency", e.target.value)}>
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </Field>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Date"><input className="input" type="date" value={form.date} onChange={(e) => update("date", e.target.value)} /></Field>
-        <Field label="Country"><input className="input" value={form.country} onChange={(e) => update("country", e.target.value)} placeholder="e.g. UK" /></Field>
-      </div>
-
-      <div className="space-y-2">
-        <div className="text-xs text-zinc-600">Expense type</div>
-        <select
-          className="input"
-          value={form.expenseType}
-          onChange={(e) => update("expenseType", e.target.value as ExpenseType)}
-        >
-          <option value="one_time">One-time (single day)</option>
-          <option value="spread_across_days">Spread across days (hotel, rental, pass)</option>
-        </select>
-        {form.expenseType === "spread_across_days" && (
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="text-[11px] text-zinc-500">Start</span>
-              <input
-                className="input"
-                type="date"
-                value={form.spreadStartDate}
-                onChange={(e) => update("spreadStartDate", e.target.value)}
+            <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 10 }}>
+              <TextField
+                label="Amount"
+                inputMode="decimal"
+                value={form.amount}
+                onChange={(e) => update("amount", e.target.value)}
+                required
               />
-            </label>
-            <label className="block">
-              <span className="text-[11px] text-zinc-500">End</span>
+              <Field label="Currency">
+                <NativeSelect value={form.currency} onChange={(e) => update("currency", e.target.value)}>
+                  {CURRENCIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            </div>
+
+            <Field label="Date">
               <input
-                className="input"
+                className="fxt-focus"
                 type="date"
-                value={form.spreadEndDate}
-                onChange={(e) => update("spreadEndDate", e.target.value)}
+                value={form.date}
+                onChange={(e) => update("date", e.target.value)}
+                style={inputBaseStyle()}
               />
-            </label>
-            {(() => {
-              const total = Number(form.amount);
-              if (!Number.isFinite(total) || total <= 0) return null;
-              if (!form.spreadStartDate || !form.spreadEndDate) return null;
-              const start = new Date(form.spreadStartDate);
-              const end = new Date(form.spreadEndDate);
-              if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return null;
-              const days = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
-              const daily = total / days;
-              return (
-                <div className="col-span-2 text-xs text-zinc-500">
-                  {daily.toFixed(2)} {form.currency} / day × {days} day{days === 1 ? "" : "s"}
+            </Field>
+          </div>
+        </Card>
+      </section>
+
+      {/* CATEGORY & PAYMENT */}
+      <section>
+        <SectionHeader title="Category & payment" />
+        <Card padding={18}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Field label="Category">
+                <NativeSelect
+                  value={form.category}
+                  onChange={(e) => {
+                    setCategoryTouched(true);
+                    setRuleSaved(false);
+                    update("category", e.target.value as ExpenseCategory);
+                  }}
+                >
+                  {EXPENSE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+
+              <Field label="Payment method">
+                <NativeSelect
+                  value={form.paymentMethod}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "__add__") {
+                      setShowAddMethod(true);
+                      return;
+                    }
+                    update("paymentMethod", v);
+                  }}
+                >
+                  {PAYMENT_METHODS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                  {customMethods.length > 0 && (
+                    <optgroup label="Your custom methods">
+                      {customMethods.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {!PAYMENT_METHODS.includes(form.paymentMethod as typeof PAYMENT_METHODS[number]) &&
+                    !customMethods.includes(form.paymentMethod) &&
+                    form.paymentMethod && (
+                      <option value={form.paymentMethod}>{form.paymentMethod}</option>
+                    )}
+                  <option value="__add__">+ Add custom method…</option>
+                </NativeSelect>
+              </Field>
+            </div>
+
+            {showAddMethod && (
+              <Card padding={14} tone="soft">
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 200px", minWidth: 180 }}>
+                    <TextField
+                      label="New method name"
+                      placeholder="e.g. Suica, Wise, HSBC Visa"
+                      value={newMethodName}
+                      maxLength={40}
+                      onChange={(e) => setNewMethodName(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={handleAddMethod}
+                    disabled={addingMethod || !newMethodName.trim()}
+                  >
+                    {addingMethod ? "Adding…" : "Add"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="md"
+                    onClick={() => {
+                      setShowAddMethod(false);
+                      setNewMethodName("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
                 </div>
+              </Card>
+            )}
+
+            {categoryTouched && form.merchant.trim() && (() => {
+              const merchant = form.merchant.trim().toLowerCase();
+              const existing = categoryRules.find((r) => {
+                const kw = r.merchantKeyword.trim().toLowerCase();
+                return (
+                  kw &&
+                  (merchant.includes(kw) || kw.includes(merchant)) &&
+                  r.category === form.category
+                );
+              });
+              if (ruleSaved || existing) {
+                return (
+                  <Alert tone="sage" title={`Rule saved · ${form.merchant.trim()} → ${form.category}`}>
+                    Next time we&apos;ll set this category automatically.
+                  </Alert>
+                );
+              }
+              return (
+                <Card padding={12} tone="soft">
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
+                      Save “{form.merchant.trim()}” → <strong style={{ color: "var(--color-ink)" }}>{form.category}</strong> as a rule?
+                    </span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleSaveRule}
+                      disabled={savingRule}
+                    >
+                      {savingRule ? "Saving…" : "Save rule"}
+                    </Button>
+                  </div>
+                </Card>
               );
             })()}
           </div>
-        )}
-      </div>
+        </Card>
+      </section>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Category">
-          <select
-            className="input"
-            value={form.category}
-            onChange={(e) => {
-              setCategoryTouched(true);
-              setRuleSaved(false);
-              update("category", e.target.value as ExpenseCategory);
-            }}
-          >
-            {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </Field>
-        <Field label="Payment method">
-          <div className="space-y-2">
-            <select
-              className="input"
-              value={form.paymentMethod}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === "__add__") {
-                  setShowAddMethod(true);
-                  return;
-                }
-                update("paymentMethod", v);
-              }}
-            >
-              {PAYMENT_METHODS.map((p) => <option key={p} value={p}>{p}</option>)}
-              {customMethods.length > 0 && (
-                <optgroup label="Your custom methods">
-                  {customMethods.map((m) => <option key={m} value={m}>{m}</option>)}
-                </optgroup>
-              )}
-              {!PAYMENT_METHODS.includes(form.paymentMethod as typeof PAYMENT_METHODS[number])
-                && !customMethods.includes(form.paymentMethod)
-                && form.paymentMethod && (
-                  <option value={form.paymentMethod}>{form.paymentMethod}</option>
-                )}
-              <option value="__add__">+ Add custom method…</option>
-            </select>
-            {showAddMethod && (
-              <div className="flex gap-2">
-                <input
-                  className="input"
-                  placeholder="e.g. Suica, Wise, HSBC Visa"
-                  value={newMethodName}
-                  maxLength={40}
-                  onChange={(e) => setNewMethodName(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={handleAddMethod}
-                  disabled={addingMethod || !newMethodName.trim()}
-                  className="px-3 py-2 rounded-md border border-zinc-300 bg-white text-sm disabled:opacity-50"
-                >
-                  {addingMethod ? "Adding…" : "Add"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowAddMethod(false); setNewMethodName(""); }}
-                  className="px-3 py-2 rounded-md border border-zinc-300 bg-white text-sm"
-                >
-                  Cancel
-                </button>
+      {/* SPLIT */}
+      <section>
+        <SectionHeader
+          title="Split"
+          meta={form.splitType === "no_split" ? "PERSONAL" : form.splitType === "equal_split" ? "EQUAL" : "CUSTOM"}
+        />
+        <Card padding={18}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Field label="How is it split?">
+              <NativeSelect
+                value={form.splitType}
+                onChange={(e) => {
+                  const next = e.target.value as SplitType;
+                  setForm((f) => (f ? { ...f, splitType: next, splitTouched: true } : f));
+                }}
+              >
+                <option value="no_split">No split (personal)</option>
+                <option value="equal_split">Equal split</option>
+                <option value="custom_amount">Custom amount</option>
+              </NativeSelect>
+            </Field>
+
+            {form.splitType === "equal_split" && (
+              <div style={participantsBoxStyle()}>
+                {knownUsers.map((u) => {
+                  const selected = form.participantIds.includes(u.userId);
+                  const amt = Number(form.amount);
+                  const n = Math.max(1, form.participantIds.length);
+                  const share = selected && Number.isFinite(amt) && amt > 0 ? amt / n : 0;
+                  return (
+                    <label key={u.userId} style={participantRowStyle()}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? Array.from(new Set([...form.participantIds, u.userId]))
+                            : form.participantIds.filter((id) => id !== u.userId);
+                          update("participantIds", next);
+                        }}
+                      />
+                      <span style={{ flex: 1 }}>{u.userName || u.userId}</span>
+                      {selected && share > 0 && (
+                        <span className="fxt-mono" style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+                          {share.toFixed(2)} {form.currency}
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            {form.splitType === "custom_amount" && (
+              <div style={participantsBoxStyle()}>
+                {knownUsers.map((u) => {
+                  const selected = form.participantIds.includes(u.userId);
+                  return (
+                    <div key={u.userId} style={participantRowStyle()}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(e) => {
+                          setForm((f) => {
+                            if (!f) return f;
+                            const nextIds = e.target.checked
+                              ? Array.from(new Set([...f.participantIds, u.userId]))
+                              : f.participantIds.filter((id) => id !== u.userId);
+                            const nextShares = { ...f.customShares };
+                            if (!e.target.checked) delete nextShares[u.userId];
+                            return { ...f, participantIds: nextIds, customShares: nextShares };
+                          });
+                        }}
+                      />
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {u.userName || u.userId}
+                      </span>
+                      <input
+                        className="fxt-focus"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={form.customShares[u.userId] ?? ""}
+                        disabled={!selected}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setForm((f) =>
+                            f ? { ...f, customShares: { ...f.customShares, [u.userId]: v } } : f,
+                          );
+                        }}
+                        style={{ ...inputBaseStyle(), maxWidth: 88, padding: "6px 8px" }}
+                      />
+                      <span className="fxt-mono" style={{ fontSize: 11, color: "var(--color-ink-3)" }}>{form.currency}</span>
+                    </div>
+                  );
+                })}
+                <CustomSharesSummary form={form} />
               </div>
             )}
           </div>
-        </Field>
-      </div>
+        </Card>
+      </section>
 
-      {categoryTouched && form.merchant.trim() && (() => {
-        const merchant = form.merchant.trim().toLowerCase();
-        const existing = categoryRules.find((r) => {
-          const kw = r.merchantKeyword.trim().toLowerCase();
-          return kw && (merchant.includes(kw) || kw.includes(merchant)) && r.category === form.category;
-        });
-        if (ruleSaved || existing) {
-          return (
-            <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-2">
-              ✓ Rule saved · {form.merchant.trim()} → {form.category}
-            </div>
-          );
-        }
-        return (
-          <div className="text-xs text-zinc-600 bg-zinc-50 border border-zinc-200 rounded p-2 flex items-center justify-between gap-2">
-            <span>Save &ldquo;{form.merchant.trim()}&rdquo; → {form.category} as a rule?</span>
-            <button
-              type="button"
-              onClick={handleSaveRule}
-              disabled={savingRule}
-              className="px-2 py-1 rounded border border-zinc-300 bg-white text-zinc-800 disabled:opacity-50"
-            >
-              {savingRule ? "Saving…" : "Save rule"}
-            </button>
-          </div>
-        );
-      })()}
-
-      <div className="space-y-2">
-        <div className="text-xs text-zinc-600">Split</div>
-        <select
-          className="input"
-          value={form.splitType}
-          onChange={(e) => {
-            const next = e.target.value as SplitType;
-            setForm((f) => (f ? { ...f, splitType: next, splitTouched: true } : f));
+      {/* ADVANCED — collapsible */}
+      <details
+        style={{
+          background: "var(--color-bg-soft)",
+          border: "1px solid var(--color-line-soft)",
+          borderRadius: "var(--radius-xl)",
+          overflow: "hidden",
+        }}
+      >
+        <summary
+          className="fxt-focus"
+          style={{
+            cursor: "pointer",
+            padding: "14px 18px",
+            listStyle: "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
           }}
         >
-          <option value="no_split">No split (personal)</option>
-          <option value="equal_split">Equal split</option>
-          <option value="custom_amount">Custom amount</option>
-        </select>
+          <span style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 15, color: "var(--color-ink)" }}>
+            More details
+          </span>
+          <span className="fxt-mono" style={{ fontSize: 11, color: "var(--color-ink-3)", letterSpacing: "0.08em" }}>
+            COUNTRY · MULTI-DAY · PAYER · NOTES
+          </span>
+        </summary>
+        <div style={{ padding: "0 18px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <TextField
+            label="Country"
+            value={form.country}
+            onChange={(e) => update("country", e.target.value)}
+            placeholder="e.g. UK"
+          />
 
-        {form.splitType === "equal_split" && (
-          <div className="border border-zinc-200 rounded-md p-2 space-y-1">
-            {knownUsers.map((u) => {
-              const selected = form.participantIds.includes(u.userId);
-              const amt = Number(form.amount);
-              const n = Math.max(1, form.participantIds.length);
-              const share = selected && Number.isFinite(amt) && amt > 0 ? amt / n : 0;
-              return (
-                <label key={u.userId} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? Array.from(new Set([...form.participantIds, u.userId]))
-                        : form.participantIds.filter((id) => id !== u.userId);
-                      update("participantIds", next);
-                    }}
-                  />
-                  <span>{u.userName || u.userId}</span>
-                  {selected && share > 0 && (
-                    <span className="ml-auto text-xs text-zinc-500">{share.toFixed(2)} {form.currency}</span>
-                  )}
-                </label>
-              );
-            })}
-          </div>
-        )}
+          <Field label="Expense type">
+            <NativeSelect
+              value={form.expenseType}
+              onChange={(e) => update("expenseType", e.target.value as ExpenseType)}
+            >
+              <option value="one_time">One-time (single day)</option>
+              <option value="spread_across_days">Spread across days (hotel, rental, pass)</option>
+            </NativeSelect>
+          </Field>
 
-        {form.splitType === "custom_amount" && (
-          <div className="border border-zinc-200 rounded-md p-2 space-y-1">
-            {knownUsers.map((u) => {
-              const selected = form.participantIds.includes(u.userId);
-              return (
-                <div key={u.userId} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={(e) => {
-                      setForm((f) => {
-                        if (!f) return f;
-                        const nextIds = e.target.checked
-                          ? Array.from(new Set([...f.participantIds, u.userId]))
-                          : f.participantIds.filter((id) => id !== u.userId);
-                        const nextShares = { ...f.customShares };
-                        if (!e.target.checked) delete nextShares[u.userId];
-                        return { ...f, participantIds: nextIds, customShares: nextShares };
-                      });
+          {form.expenseType === "spread_across_days" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Field label="Start">
+                <input
+                  className="fxt-focus"
+                  type="date"
+                  value={form.spreadStartDate}
+                  onChange={(e) => update("spreadStartDate", e.target.value)}
+                  style={inputBaseStyle()}
+                />
+              </Field>
+              <Field label="End">
+                <input
+                  className="fxt-focus"
+                  type="date"
+                  value={form.spreadEndDate}
+                  onChange={(e) => update("spreadEndDate", e.target.value)}
+                  style={inputBaseStyle()}
+                />
+              </Field>
+              {(() => {
+                const total = Number(form.amount);
+                if (!Number.isFinite(total) || total <= 0) return null;
+                if (!form.spreadStartDate || !form.spreadEndDate) return null;
+                const start = new Date(form.spreadStartDate);
+                const end = new Date(form.spreadEndDate);
+                if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return null;
+                const days = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+                const daily = total / days;
+                return (
+                  <div
+                    style={{
+                      gridColumn: "span 2",
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 12,
+                      color: "var(--color-ink-3)",
+                      letterSpacing: "0.04em",
                     }}
-                  />
-                  <span className="flex-1 truncate">{u.userName || u.userId}</span>
-                  <input
-                    className="input max-w-[6.5rem]"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    value={form.customShares[u.userId] ?? ""}
-                    disabled={!selected}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setForm((f) => (f ? { ...f, customShares: { ...f.customShares, [u.userId]: v } } : f));
-                    }}
-                  />
-                  <span className="text-xs text-zinc-500">{form.currency}</span>
-                </div>
-              );
-            })}
-            <CustomSharesSummary form={form} />
-          </div>
-        )}
-      </div>
+                  >
+                    {daily.toFixed(2)} {form.currency} / DAY × {days} DAY{days === 1 ? "" : "S"}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
-      <Field label="Payer name"><input className="input" value={form.payerName} onChange={(e) => update("payerName", e.target.value)} /></Field>
-      <Field label="Notes"><textarea className="input" rows={2} value={form.notes} onChange={(e) => update("notes", e.target.value)} /></Field>
+          <TextField
+            label="Payer name"
+            value={form.payerName}
+            onChange={(e) => update("payerName", e.target.value)}
+          />
+
+          <Field label="Notes">
+            <textarea
+              className="fxt-focus"
+              rows={2}
+              value={form.notes}
+              onChange={(e) => update("notes", e.target.value)}
+              style={{ ...inputBaseStyle(), minHeight: 60, resize: "vertical", lineHeight: 1.5 }}
+            />
+          </Field>
+        </div>
+      </details>
 
       <ItemsSection form={form} setForm={setForm} />
 
-      <div className="md:static sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-auto -mx-4 sm:-mx-6 md:mx-0 px-4 sm:px-6 md:px-0 py-3 md:py-0 bg-white md:bg-transparent border-t md:border-0 border-zinc-200 z-10 flex gap-2">
-        <button type="submit" disabled={submitting} className="flex-1 md:flex-none bg-zinc-900 text-white px-4 py-3 md:py-2 rounded-md disabled:opacity-50 font-medium">
+      <BottomActionBar>
+        <Button type="submit" disabled={submitting} variant="accent" size="lg" full>
           {submitting ? "Saving…" : "Save expense"}
-        </button>
-        <button type="button" onClick={() => router.back()} className="px-4 py-3 md:py-2 rounded-md border border-zinc-300 bg-white">Cancel</button>
-      </div>
+        </Button>
+        <Button type="button" onClick={() => router.back()} variant="secondary" size="lg">
+          Cancel
+        </Button>
+      </BottomActionBar>
     </form>
   );
 }
+
+// ---------- Items section ----------
 
 function ItemsSection({
   form,
@@ -957,100 +1169,151 @@ function ItemsSection({
   setForm: React.Dispatch<React.SetStateAction<FormState | null>>;
 }) {
   function updateItem(id: string, patch: Partial<FormItem>) {
-    setForm((f) => f ? { ...f, items: f.items.map((it) => it.id === id ? { ...it, ...patch } : it) } : f);
+    setForm((f) => (f ? { ...f, items: f.items.map((it) => (it.id === id ? { ...it, ...patch } : it)) } : f));
   }
   function removeItem(id: string) {
-    setForm((f) => f ? { ...f, items: f.items.filter((it) => it.id !== id) } : f);
+    setForm((f) => (f ? { ...f, items: f.items.filter((it) => it.id !== id) } : f));
   }
   function addItem() {
-    setForm((f) => f ? { ...f, items: [...f.items, blankItem()] } : f);
+    setForm((f) => (f ? { ...f, items: [...f.items, blankItem()] } : f));
   }
   const itemTotal = form.items.reduce((s, it) => {
     const n = Number(it.totalPrice);
     return s + (Number.isFinite(n) ? n : 0);
   }, 0);
   const expenseAmount = Number(form.amount);
-  const sumMismatch = form.items.length > 0
-    && Number.isFinite(expenseAmount)
-    && expenseAmount > 0
-    && Math.abs(itemTotal - expenseAmount) > 0.5;
+  const sumMismatch =
+    form.items.length > 0 &&
+    Number.isFinite(expenseAmount) &&
+    expenseAmount > 0 &&
+    Math.abs(itemTotal - expenseAmount) > 0.5;
 
   return (
-    <section className="space-y-2">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-medium text-zinc-900">Receipt items ({form.items.length})</h2>
-        {form.items.length > 0 && (
-          <div className="text-xs text-zinc-500">
-            Items sum: {itemTotal.toFixed(2)} {form.currency}
-            {sumMismatch && <span className="ml-2 text-amber-700">≠ {expenseAmount.toFixed(2)}</span>}
+    <section>
+      <SectionHeader
+        title={`Receipt items (${form.items.length})`}
+        meta={form.items.length > 0 ? `SUM ${itemTotal.toFixed(2)} ${form.currency}` : undefined}
+        action={
+          sumMismatch ? <Badge tone="amber" size="sm">≠ {expenseAmount.toFixed(2)}</Badge> : undefined
+        }
+      />
+      <Card padding={14}>
+        {form.items.length === 0 ? (
+          <div style={{ fontSize: 13, color: "var(--color-ink-3)", padding: "6px 4px 10px" }}>
+            We couldn&apos;t detect individual items, but you can still save the total amount.
           </div>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+            {form.items.map((it) => (
+              <li
+                key={it.id}
+                style={{
+                  background: "var(--color-bg-soft)",
+                  border: "1px solid var(--color-line-soft)",
+                  borderRadius: "var(--radius-md)",
+                  padding: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                  <input
+                    className="fxt-focus"
+                    placeholder="Item name"
+                    value={it.name}
+                    onChange={(e) => updateItem(it.id, { name: e.target.value })}
+                    style={{ ...inputBaseStyle(), flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeItem(it.id)}
+                    aria-label="Remove item"
+                    style={{
+                      background: "transparent",
+                      border: 0,
+                      color: "var(--color-ink-3)",
+                      cursor: "pointer",
+                      padding: "8px 6px",
+                      fontSize: 14,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  <SmallField label="Qty">
+                    <input
+                      className="fxt-focus"
+                      inputMode="decimal"
+                      value={it.quantity}
+                      onChange={(e) => updateItem(it.id, { quantity: e.target.value })}
+                      style={inputBaseStyle()}
+                    />
+                  </SmallField>
+                  <SmallField label="Unit">
+                    <input
+                      className="fxt-focus"
+                      inputMode="decimal"
+                      value={it.unitPrice}
+                      onChange={(e) => updateItem(it.id, { unitPrice: e.target.value })}
+                      style={inputBaseStyle()}
+                    />
+                  </SmallField>
+                  <SmallField label="Total">
+                    <input
+                      className="fxt-focus"
+                      inputMode="decimal"
+                      value={it.totalPrice}
+                      onChange={(e) => updateItem(it.id, { totalPrice: e.target.value })}
+                      required
+                      style={inputBaseStyle()}
+                    />
+                  </SmallField>
+                </div>
+                <SmallField label="Item category">
+                  <NativeSelect
+                    value={it.category}
+                    onChange={(e) => updateItem(it.id, { category: e.target.value as ExpenseCategory | "" })}
+                  >
+                    <option value="">— Same as receipt —</option>
+                    {EXPENSE_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </SmallField>
+              </li>
+            ))}
+          </ul>
         )}
-      </div>
 
-      {form.items.length === 0 ? (
-        <div className="text-sm text-zinc-500 border border-dashed border-zinc-300 rounded-md p-3 bg-white">
-          We couldn&apos;t detect individual items, but you can still save the total amount.
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {form.items.map((it) => (
-            <li key={it.id} className="bg-white border border-zinc-200 rounded-md p-3 space-y-2">
-              <div className="flex items-start gap-2">
-                <input
-                  className="input flex-1"
-                  placeholder="Item name"
-                  value={it.name}
-                  onChange={(e) => updateItem(it.id, { name: e.target.value })}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeItem(it.id)}
-                  aria-label="Remove item"
-                  className="text-zinc-400 hover:text-red-600 px-2 py-2 text-sm"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <label className="block">
-                  <span className="text-[11px] text-zinc-500">Qty</span>
-                  <input className="input" inputMode="decimal" value={it.quantity} onChange={(e) => updateItem(it.id, { quantity: e.target.value })} />
-                </label>
-                <label className="block">
-                  <span className="text-[11px] text-zinc-500">Unit</span>
-                  <input className="input" inputMode="decimal" value={it.unitPrice} onChange={(e) => updateItem(it.id, { unitPrice: e.target.value })} />
-                </label>
-                <label className="block">
-                  <span className="text-[11px] text-zinc-500">Total</span>
-                  <input className="input" inputMode="decimal" value={it.totalPrice} onChange={(e) => updateItem(it.id, { totalPrice: e.target.value })} required />
-                </label>
-              </div>
-              <label className="block">
-                <span className="text-[11px] text-zinc-500">Item category</span>
-                <select
-                  className="input"
-                  value={it.category}
-                  onChange={(e) => updateItem(it.id, { category: e.target.value as ExpenseCategory | "" })}
-                >
-                  <option value="">— Same as receipt —</option>
-                  {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </label>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <button
-        type="button"
-        onClick={addItem}
-        className="w-full px-3 py-2 rounded-md border border-dashed border-zinc-300 bg-white text-sm text-zinc-600 hover:border-zinc-400 hover:text-zinc-900 transition"
-      >
-        + Add item
-      </button>
+        <button
+          type="button"
+          onClick={addItem}
+          className="fxt-focus"
+          style={{
+            marginTop: form.items.length > 0 ? 12 : 4,
+            width: "100%",
+            padding: "12px",
+            background: "transparent",
+            border: "1px dashed var(--color-line)",
+            borderRadius: "var(--radius-md)",
+            color: "var(--color-ink-2)",
+            fontSize: 13,
+            cursor: "pointer",
+            transition: "border-color 120ms ease, color 120ms ease",
+          }}
+        >
+          + Add item
+        </button>
+      </Card>
     </section>
   );
 }
+
+// ---------- Persistence helpers ----------
 
 function buildItems(form: FormState): ExpenseItem[] | undefined {
   const items = form.items
@@ -1095,13 +1358,34 @@ function buildParticipants(
 }
 
 function CustomSharesSummary({ form }: { form: FormState }) {
-  const sum = form.participantIds.reduce((s, id) => s + (Number(form.customShares[id]) || 0), 0);
+  const sum = form.participantIds.reduce(
+    (s, id) => s + (Number(form.customShares[id]) || 0),
+    0,
+  );
   const total = Number(form.amount);
   const ok = Number.isFinite(total) && total > 0 && Math.abs(sum - total) <= 0.5;
   return (
-    <div className="flex items-baseline justify-between text-xs pt-1">
-      <span className="text-zinc-500">Shares total</span>
-      <span className={ok ? "text-zinc-700" : "text-amber-700"}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        paddingTop: 8,
+        marginTop: 4,
+        borderTop: "1px solid var(--color-line-soft)",
+      }}
+    >
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: "0.06em", color: "var(--color-ink-3)" }}>
+        SHARES TOTAL
+      </span>
+      <span
+        className="fxt-mono"
+        style={{
+          fontSize: 13,
+          color: ok ? "var(--color-ink)" : "var(--color-amber-ink)",
+          fontWeight: 500,
+        }}
+      >
         {sum.toFixed(2)} {form.currency}
         {Number.isFinite(total) && total > 0 && !ok && ` (≠ ${total.toFixed(2)})`}
       </span>
@@ -1109,18 +1393,122 @@ function CustomSharesSummary({ form }: { form: FormState }) {
   );
 }
 
+// ---------- Inline UI helpers ----------
+
+function inputBaseStyle(): React.CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    background: "var(--color-surface)",
+    border: "1px solid var(--color-line)",
+    borderRadius: "var(--radius-md)",
+    padding: "10px 12px",
+    fontSize: 14,
+    fontFamily: "var(--font-sans)",
+    color: "var(--color-ink)",
+    outline: "none",
+    lineHeight: 1.4,
+  };
+}
+
+function participantsBoxStyle(): React.CSSProperties {
+  return {
+    background: "var(--color-bg-soft)",
+    border: "1px solid var(--color-line-soft)",
+    borderRadius: "var(--radius-md)",
+    padding: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  };
+}
+
+function participantRowStyle(): React.CSSProperties {
+  return {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 10px",
+    background: "var(--color-surface)",
+    border: "1px solid var(--color-line-soft)",
+    borderRadius: 8,
+    fontSize: 14,
+    color: "var(--color-ink)",
+  };
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="text-xs text-zinc-600">{label}</span>
-      <div className="mt-1">{children}</div>
+    <label style={{ display: "block" }}>
+      <span
+        style={{
+          display: "block",
+          fontFamily: "var(--font-mono)",
+          fontSize: 11,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: "var(--color-ink-3)",
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </span>
+      {children}
     </label>
   );
 }
 
+function SmallField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: "block" }}>
+      <span
+        style={{
+          display: "block",
+          fontFamily: "var(--font-mono)",
+          fontSize: 10,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--color-ink-3)",
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function NativeSelect({
+  children,
+  ...rest
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      {...rest}
+      className={["fxt-focus", rest.className].filter(Boolean).join(" ")}
+      style={{
+        ...inputBaseStyle(),
+        appearance: "none",
+        paddingRight: 30,
+        backgroundImage:
+          "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3.5l3 3 3-3' fill='none' stroke='%2374706b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "right 10px center",
+        backgroundSize: "10px 10px",
+        ...rest.style,
+      }}
+    >
+      {children}
+    </select>
+  );
+}
+
+// ---------- Page export ----------
+
 export default function ConfirmPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-zinc-500">Loading…</div>}>
+    <Suspense fallback={<div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>}>
       <ConfirmInner />
     </Suspense>
   );

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import UploadBox from "@/components/UploadBox";
+import { Card, Button, ButtonLink, Alert, SectionHeader } from "@/components/ui";
 import type { SourceType } from "@/lib/types";
 
 type Staged = { dataUri: string; sourceType: SourceType };
@@ -31,6 +32,7 @@ function ScanPageInner() {
   if (partyId) queryParts.push(`partyId=${encodeURIComponent(partyId)}`);
   const queryString = queryParts.length ? `?${queryParts.join("&")}` : "";
   const manualHref = `/scan/confirm${queryString ? `${queryString}&manual=1` : "?manual=1"}`;
+
   const [staged, setStaged] = useState<Staged | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,9 +81,7 @@ function ScanPageInner() {
       if (res.status === 429) {
         const body = await res.json().catch(() => ({}));
         console.error("/api/analyze 429", body);
-        setError(
-          "You've made several requests recently. Please wait a moment and try again.",
-        );
+        setError("You've made several requests recently. Please wait a moment and try again.");
         setBusy(false);
         return;
       }
@@ -108,89 +108,157 @@ function ScanPageInner() {
 
   if (busy && staged) {
     return (
-      <div className="space-y-5 max-w-xl">
-        <h1 className="text-xl font-semibold">Analyzing with AI…</h1>
-        <div className="border rounded-xl overflow-hidden bg-zinc-50 flex justify-center">
-          <Image
-            src={staged.dataUri}
-            alt="Selected"
-            width={800}
-            height={800}
-            unoptimized
-            className="max-h-56 w-auto object-contain"
-          />
-        </div>
-        <ol className="bg-white border border-zinc-200 rounded-xl divide-y divide-zinc-100 text-sm">
-          {SCAN_STEPS.map((label, i) => {
-            const isDone = fetchDone ? true : i < stepIndex;
-            const isActive = !fetchDone && i === stepIndex;
-            return (
-              <li key={label} className="flex items-center gap-3 px-4 py-3">
-                <StepIcon state={isDone ? "done" : isActive ? "active" : "pending"} />
-                <span className={isDone ? "text-zinc-500 line-through decoration-zinc-300" : isActive ? "text-zinc-900 font-medium" : "text-zinc-400"}>
-                  {label}
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-        <p className="text-xs text-zinc-500 text-center">This usually takes 5–10 seconds.</p>
+      <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
+        <div className="fxt-eyebrow">ANALYZING WITH AI</div>
+        <h1
+          className="fxt-display"
+          style={{ fontSize: 32, margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
+        >
+          Reading your receipt…
+        </h1>
+
+        <Card padding={0} tone="soft">
+          <div
+            style={{
+              borderRadius: "var(--radius-xl)",
+              overflow: "hidden",
+              background: "var(--color-bg-soft)",
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
+            <Image
+              src={staged.dataUri}
+              alt="Selected"
+              width={800}
+              height={800}
+              unoptimized
+              style={{ maxHeight: 220, width: "auto", objectFit: "contain", display: "block" }}
+            />
+          </div>
+        </Card>
+
+        <Card padding={0}>
+          <ol
+            style={{
+              listStyle: "none",
+              margin: 0,
+              padding: 0,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {SCAN_STEPS.map((label, i) => {
+              const isDone = fetchDone ? true : i < stepIndex;
+              const isActive = !fetchDone && i === stepIndex;
+              return (
+                <li
+                  key={label}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "12px 16px",
+                    borderTop: i === 0 ? "0" : "1px solid var(--color-line-soft)",
+                  }}
+                >
+                  <StepIcon state={isDone ? "done" : isActive ? "active" : "pending"} />
+                  <span
+                    style={{
+                      fontSize: 14,
+                      color: isDone ? "var(--color-ink-3)" : isActive ? "var(--color-ink)" : "var(--color-ink-3)",
+                      fontWeight: isActive ? 500 : 400,
+                      textDecoration: isDone ? "line-through" : "none",
+                      textDecorationColor: isDone ? "var(--color-line)" : "transparent",
+                    }}
+                  >
+                    {label}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </Card>
+        <p style={{ fontSize: 12, color: "var(--color-ink-3)", textAlign: "center", margin: 0 }}>
+          This usually takes 5–10 seconds.
+        </p>
       </div>
     );
   }
 
   if (staged) {
     return (
-      <div className="space-y-4 max-w-xl">
-        <h1 className="text-2xl font-semibold">Review image</h1>
-        {error && (
-          <div className="bg-amber-50 text-amber-800 text-sm p-3 rounded border border-amber-200">
-            {error} Redirecting to manual entry…
+      <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="fxt-eyebrow">REVIEW IMAGE</div>
+        <h1
+          className="fxt-display"
+          style={{ fontSize: 32, margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
+        >
+          Looks right?
+        </h1>
+
+        {error && <Alert tone="amber" title="Couldn't analyze that image.">{error} Redirecting to manual entry…</Alert>}
+
+        <Card padding={0} tone="soft">
+          <div
+            style={{
+              borderRadius: "var(--radius-xl)",
+              overflow: "hidden",
+              background: "var(--color-bg-soft)",
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
+            <Image
+              src={staged.dataUri}
+              alt="Selected"
+              width={800}
+              height={800}
+              unoptimized
+              style={{ maxHeight: 420, width: "auto", objectFit: "contain", display: "block" }}
+            />
           </div>
-        )}
-        <div className="border rounded-xl overflow-hidden bg-zinc-50 flex justify-center">
-          <Image
-            src={staged.dataUri}
-            alt="Selected"
-            width={800}
-            height={800}
-            unoptimized
-            className="max-h-96 w-auto object-contain"
-          />
-        </div>
-        <div className="grid gap-2">
-          <button
-            type="button"
-            onClick={analyze}
-            disabled={busy}
-            className="w-full p-4 rounded-xl bg-zinc-900 text-white font-medium hover:bg-zinc-800 transition disabled:opacity-50"
-          >
+        </Card>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Button onClick={analyze} disabled={busy} variant="accent" size="lg" full>
             ✨ Analyze with AI
-          </button>
-          <Link
-            href={manualHref}
-            className="w-full p-4 rounded-xl border border-zinc-300 bg-white text-center font-medium hover:bg-zinc-50 transition"
-          >
+          </Button>
+          <ButtonLink href={manualHref} variant="secondary" size="lg" full>
             Skip AI — enter manually
-          </Link>
-          <button
+          </ButtonLink>
+          <Button
             type="button"
             onClick={() => setStaged(null)}
             disabled={busy}
-            className="w-full p-3 text-sm text-zinc-600 hover:text-zinc-900 transition disabled:opacity-50"
+            variant="ghost"
+            size="md"
+            full
           >
             ← Choose a different image
-          </button>
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 max-w-xl">
-      <h1 className="text-2xl font-semibold">Add expense</h1>
-      <p className="text-sm text-zinc-500">Pick an image, then choose to analyze with AI or enter manually.</p>
-      <div className="grid gap-3">
+    <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <header>
+        <div className="fxt-eyebrow">ADD AN EXPENSE</div>
+        <h1
+          className="fxt-display"
+          style={{ fontSize: "clamp(28px, 4.6vw, 40px)", margin: "8px 0 6px", lineHeight: 1.1, letterSpacing: "-0.015em" }}
+        >
+          How would you like to add this?
+        </h1>
+        <p style={{ color: "var(--color-ink-2)", fontSize: 14, margin: 0, maxWidth: "56ch" }}>
+          Photos and screenshots go through AI. Smart Add parses one short line. Manual lets you fill the form yourself. Either way, you confirm before saving.
+        </p>
+      </header>
+
+      <SectionHeader title="From an image" meta="AI EXTRACTS THE FIELDS" />
+      <div style={{ display: "grid", gap: 10 }}>
         <UploadBox
           label="📷 Scan receipt"
           hint="Take a photo or pick a paper-receipt image"
@@ -198,53 +266,150 @@ function ScanPageInner() {
           onFile={(uri) => handleFile(uri, "receipt")}
         />
         <UploadBox
-          label="🖼️ Upload screenshot / payment image"
-          hint="Apple Pay, Google Pay, banking app, Alipay, WeChat Pay, online checkout — anything"
+          label="🖼️ Upload screenshot"
+          hint="Apple Pay, Google Pay, banking apps, Alipay, WeChat Pay, online checkout"
           onFile={(uri) => handleFile(uri, "screenshot")}
         />
-        <Link
+      </div>
+
+      <SectionHeader title="By text" meta="WITHOUT AN IMAGE" />
+      <div style={{ display: "grid", gap: 10 }}>
+        <MethodLink
           href={`/scan/smart-add${queryString}`}
-          className="block w-full p-6 border-2 border-zinc-300 rounded-xl text-center bg-white hover:bg-zinc-50 transition"
-        >
-          <div className="text-base font-medium">✨ Smart Add</div>
-          <div className="text-xs text-zinc-500 mt-1">Type one short line; AI fills the fields</div>
-        </Link>
-        <Link
+          icon="✨"
+          title="Smart Add"
+          hint="Type one short line. AI fills merchant, amount, payer, and split."
+          accent
+        />
+        <MethodLink
           href={manualHref}
-          className="block w-full p-6 border-2 border-zinc-300 rounded-xl text-center bg-white hover:bg-zinc-50 transition"
-        >
-          <div className="text-base font-medium">✏️ Manual add</div>
-          <div className="text-xs text-zinc-500 mt-1">Enter expense details by hand</div>
-        </Link>
+          icon="✏️"
+          title="Manual Add"
+          hint="Fill in every field yourself. No AI."
+        />
       </div>
     </div>
+  );
+}
+
+function MethodLink({
+  href,
+  icon,
+  title,
+  hint,
+  accent = false,
+}: {
+  href: string;
+  icon: string;
+  title: string;
+  hint: string;
+  accent?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className="fxt-focus"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: 18,
+        background: accent ? "var(--color-accent-soft)" : "var(--color-surface)",
+        border: `1px solid ${
+          accent ? "color-mix(in oklch, var(--color-accent) 25%, var(--color-line))" : "var(--color-line)"
+        }`,
+        borderRadius: "var(--radius-xl)",
+        color: "var(--color-ink)",
+        textDecoration: "none",
+        transition: "border-color 120ms ease, background 120ms ease",
+      }}
+    >
+      <span
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 999,
+          background: accent ? "color-mix(in oklch, var(--color-accent) 18%, var(--color-canvas))" : "var(--color-bg-soft)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 20,
+          flexShrink: 0,
+        }}
+        aria-hidden
+      >
+        {icon}
+      </span>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 16, lineHeight: 1.25 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 13, color: "var(--color-ink-2)", marginTop: 2, lineHeight: 1.4 }}>
+          {hint}
+        </div>
+      </div>
+      <span aria-hidden style={{ color: "var(--color-ink-3)", fontSize: 18 }}>›</span>
+    </Link>
   );
 }
 
 function StepIcon({ state }: { state: "done" | "active" | "pending" }) {
   if (state === "done") {
     return (
-      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs shrink-0">
+      <span
+        aria-hidden
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 999,
+          background: "var(--color-sage)",
+          color: "white",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 13,
+          flexShrink: 0,
+        }}
+      >
         ✓
       </span>
     );
   }
   if (state === "active") {
     return (
-      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border-2 border-zinc-300 border-t-zinc-900 animate-spin shrink-0" aria-hidden />
+      <span
+        aria-hidden
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 999,
+          border: "2px solid var(--color-line)",
+          borderTopColor: "var(--color-accent)",
+          animation: "spin 0.9s linear infinite",
+          flexShrink: 0,
+        }}
+      />
     );
   }
   return (
-    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border-2 border-zinc-200 text-zinc-300 text-xs shrink-0">
-      ○
-    </span>
+    <span
+      aria-hidden
+      style={{
+        width: 24,
+        height: 24,
+        borderRadius: 999,
+        border: "2px solid var(--color-line-soft)",
+        flexShrink: 0,
+      }}
+    />
   );
 }
 
 export default function ScanPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-zinc-500">Loading…</div>}>
+    <Suspense fallback={<div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>}>
       <ScanPageInner />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </Suspense>
   );
 }

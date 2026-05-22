@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session";
 import { EXPENSE_CATEGORIES, type ExpenseRecord, type Party } from "@/lib/types";
@@ -8,7 +8,7 @@ import ExpenseCard from "@/components/ExpenseCard";
 import RefreshButton from "@/components/RefreshButton";
 import PullToRefreshIndicator from "@/components/PullToRefreshIndicator";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
-import { useCallback } from "react";
+import { PageHeader, SelectChip, TextField, Card, Alert, Badge } from "@/components/ui";
 
 type DayGroup = {
   date: string;
@@ -26,7 +26,7 @@ function formatAmount(value: number): string {
 function formatDayHeading(dateStr: string): string {
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
 
 function groupByDate(records: ExpenseRecord[], baseCurrency: string): DayGroup[] {
@@ -79,7 +79,9 @@ function HistoryInner() {
   const loadExpenses = useCallback(async (): Promise<void> => {
     if (!session || !partyId) return;
     try {
-      const r = await fetch(`/api/expenses?familyId=${encodeURIComponent(partyId)}&baseCurrency=${encodeURIComponent(session.baseCurrency || "HKD")}`);
+      const r = await fetch(
+        `/api/expenses?familyId=${encodeURIComponent(partyId)}&baseCurrency=${encodeURIComponent(session.baseCurrency || "HKD")}`,
+      );
       const body = await r.json();
       if (!r.ok) throw new Error(body.error || "Failed to load");
       setRecords(body.records || []);
@@ -119,35 +121,98 @@ function HistoryInner() {
 
   const groups = useMemo(() => groupByDate(filtered, baseCurrency), [filtered, baseCurrency]);
 
-  if (!session) return <div className="text-sm text-zinc-500">Loading…</div>;
-  if (error) return <div className="bg-red-50 text-red-700 text-sm p-3 rounded">{error}</div>;
+  if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
+  if (error)
+    return (
+      <Alert tone="accent" title="Couldn't load expenses.">
+        {error}
+      </Alert>
+    );
 
   const hasAnyRecords = records.length > 0;
   const noMatch = hasAnyRecords && filtered.length === 0;
 
-  return (
-    <div className="space-y-4">
-      <PullToRefreshIndicator pulling={pulling} distance={distance} refreshing={refreshing} />
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Expenses</h1>
-        <RefreshButton onClick={trigger} refreshing={refreshing} />
-      </div>
+  const filteredTotal = filtered.reduce((s, r) => {
+    if (typeof r.baseAmount === "number" && r.baseCurrency === baseCurrency) return s + r.baseAmount;
+    return s;
+  }, 0);
 
-      <div className="flex flex-wrap gap-2">
-        <select className="input max-w-[14rem]" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
-          <option value="">— Pick a group —</option>
-          {parties.map((p) => <option key={p.partyId} value={p.partyId}>{p.partyName}</option>)}
-        </select>
-        <input className="input max-w-xs" placeholder="Search merchant / notes" value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select className="input max-w-[12rem]" value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">All categories</option>
-          {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select className="input max-w-[12rem]" value={user} onChange={(e) => setUser(e.target.value)}>
-          <option value="">All members</option>
-          {users.map((u) => <option key={u} value={u}>{u}</option>)}
-        </select>
-      </div>
+  const currentGroupName = parties.find((p) => p.partyId === partyId)?.partyName;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+      <PullToRefreshIndicator pulling={pulling} distance={distance} refreshing={refreshing} />
+
+      <PageHeader
+        eyebrow={currentGroupName ? `IN GROUP · ${currentGroupName.toUpperCase()}` : "EVERY EXPENSE, BY DAY"}
+        title={<>Your <em style={{ fontStyle: "italic", color: "var(--color-accent)" }}>expenses</em></>}
+        description="Grouped by day, with totals in your display currency."
+        actions={<RefreshButton onClick={trigger} refreshing={refreshing} />}
+      />
+
+      <Card padding={16} tone="soft">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
+          <div style={{ flex: "1 1 220px", minWidth: 220 }}>
+            <TextField
+              label="Search"
+              placeholder="Merchant, notes, or country"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <SelectChip label="Group" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
+              <option value="">— Pick a group —</option>
+              {parties.map((p) => (
+                <option key={p.partyId} value={p.partyId}>
+                  {p.partyName}
+                </option>
+              ))}
+            </SelectChip>
+            <SelectChip label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="">All categories</option>
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </SelectChip>
+            <SelectChip label="Payer" value={user} onChange={(e) => setUser(e.target.value)}>
+              <option value="">All members</option>
+              {users.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </SelectChip>
+          </div>
+        </div>
+
+        {hasAnyRecords && (
+          <div
+            style={{
+              marginTop: 14,
+              paddingTop: 12,
+              borderTop: "1px solid var(--color-line-soft)",
+              display: "flex",
+              gap: 14,
+              flexWrap: "wrap",
+              alignItems: "center",
+              fontSize: 13,
+              color: "var(--color-ink-2)",
+            }}
+          >
+            <Badge tone="neutral" size="sm">
+              {filtered.length} of {records.length}
+            </Badge>
+            {filteredTotal > 0 && (
+              <span className="fxt-mono" style={{ color: "var(--color-ink-2)" }}>
+                ≈ {formatAmount(filteredTotal)} {baseCurrency}
+              </span>
+            )}
+          </div>
+        )}
+      </Card>
 
       {!hasAnyRecords ? (
         <EmptyState
@@ -164,12 +229,23 @@ function HistoryInner() {
           description="Try clearing a filter or searching for a different merchant."
         />
       ) : (
-        <ul className="space-y-4">
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 22 }}>
           {groups.map((g) => (
             <li key={g.date}>
               <DayHeader group={g} />
-              <ul className="space-y-2 mt-2">
-                {g.records.map((r) => <ExpenseCard key={r.id} record={r} baseCurrency={baseCurrency} />)}
+              <ul
+                style={{
+                  listStyle: "none",
+                  margin: "10px 0 0",
+                  padding: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {g.records.map((r) => (
+                  <ExpenseCard key={r.id} record={r} baseCurrency={baseCurrency} />
+                ))}
               </ul>
             </li>
           ))}
@@ -181,21 +257,55 @@ function HistoryInner() {
 
 function DayHeader({ group }: { group: DayGroup }) {
   const currencyParts = Object.entries(group.totalsByCurrency);
-  const primary = currencyParts.length === 1
-    ? `${formatAmount(currencyParts[0][1])} ${currencyParts[0][0]}`
-    : currencyParts.map(([cur, amt]) => `${formatAmount(amt)} ${cur}`).join(" · ");
-  const showBase = group.baseTotal > 0 &&
-    !(currencyParts.length === 1 && currencyParts[0][0] === group.baseCurrency);
+  const primary =
+    currencyParts.length === 1
+      ? `${formatAmount(currencyParts[0][1])} ${currencyParts[0][0]}`
+      : currencyParts.map(([cur, amt]) => `${formatAmount(amt)} ${cur}`).join(" · ");
+  const showBase =
+    group.baseTotal > 0 && !(currencyParts.length === 1 && currencyParts[0][0] === group.baseCurrency);
   return (
-    <div className="flex items-baseline justify-between gap-3 px-1">
-      <div>
-        <div className="text-sm font-semibold text-zinc-900">{formatDayHeading(group.date)}</div>
-        <div className="text-xs text-zinc-500">{group.count} expense{group.count === 1 ? "" : "s"}</div>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        justifyContent: "space-between",
+        gap: 12,
+        padding: "0 4px",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontWeight: 600,
+            fontSize: 16,
+            color: "var(--color-ink)",
+            lineHeight: 1.3,
+          }}
+        >
+          {formatDayHeading(group.date)}
+        </div>
+        <div
+          className="fxt-mono"
+          style={{ fontSize: 10.5, color: "var(--color-ink-3)", letterSpacing: "0.08em", marginTop: 2 }}
+        >
+          {group.count} EXPENSE{group.count === 1 ? "" : "S"}
+        </div>
       </div>
-      <div className="text-right">
-        <div className="text-sm font-medium text-zinc-900">{primary}</div>
+      <div style={{ textAlign: "right", minWidth: 0 }}>
+        <div
+          className="fxt-mono"
+          style={{ fontSize: 13, color: "var(--color-ink)", fontWeight: 500 }}
+        >
+          {primary}
+        </div>
         {showBase && group.baseCurrency && (
-          <div className="text-xs text-zinc-500">≈ {formatAmount(group.baseTotal)} {group.baseCurrency}</div>
+          <div
+            className="fxt-mono"
+            style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}
+          >
+            ≈ {formatAmount(group.baseTotal)} {group.baseCurrency}
+          </div>
         )}
       </div>
     </div>
@@ -204,7 +314,7 @@ function DayHeader({ group }: { group: DayGroup }) {
 
 export default function History() {
   return (
-    <Suspense fallback={<div className="text-sm text-zinc-500">Loading…</div>}>
+    <Suspense fallback={<div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>}>
       <HistoryInner />
     </Suspense>
   );
