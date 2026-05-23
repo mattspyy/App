@@ -289,7 +289,7 @@ export default function SettlementPage() {
 
       {/* BALANCES TABLE */}
       <section>
-        <SectionHeader title={t("settlement.perPersonBalance")} meta={`${balances.length} ${balances.length === 1 ? "MEMBER" : "MEMBERS"}`} />
+        <SectionHeader title={t("settlement.perPersonBalance")} meta={`${balances.length} ${balances.length === 1 ? t("meta.member") : t("meta.members")}`} />
         {balances.length === 0 ? (
           <Card padding={20} tone="soft">
             <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>{t("settlement.noSplittable")}</div>

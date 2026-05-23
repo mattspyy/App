@@ -630,6 +630,12 @@ const ZH_HK: Dictionary = {
   "confirm.itemTotal": "總額",
   "confirm.itemCategory": "項目分類",
   "confirm.customSplitGuidance": "提到自訂分擔金額 — 請檢查每人分擔。",
+  "meta.member": "位成員",
+  "meta.members": "位成員",
+  "meta.expense": "筆開支",
+  "meta.expenses": "筆開支",
+  "meta.row": "列",
+  "meta.rows": "列",
 };
 
 const EN: Dictionary = {
@@ -1203,6 +1209,12 @@ const EN: Dictionary = {
   "confirm.itemTotal": "Total",
   "confirm.itemCategory": "Item category",
   "confirm.customSplitGuidance": "Custom split amounts mentioned \\u2014 review participant shares.",
+  "meta.member": "MEMBER",
+  "meta.members": "MEMBERS",
+  "meta.expense": "EXPENSE",
+  "meta.expenses": "EXPENSES",
+  "meta.row": "ROW",
+  "meta.rows": "ROWS",
 };
 
 const ZH_CN: Dictionary = {
@@ -1776,6 +1788,12 @@ const ZH_CN: Dictionary = {
   "confirm.itemTotal": "总额",
   "confirm.itemCategory": "项目分类",
   "confirm.customSplitGuidance": "提到自定义分担金额 — 请检查每人分担。",
+  "meta.member": "位成员",
+  "meta.members": "位成员",
+  "meta.expense": "笔开支",
+  "meta.expenses": "笔开支",
+  "meta.row": "行",
+  "meta.rows": "行",
 };
 
 const DICTIONARIES: Record<Language, Dictionary> = {

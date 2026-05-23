@@ -254,7 +254,7 @@ export default function ReportPage() {
 
       {/* RECORDS TABLE */}
       <section>
-        <SectionHeader title={t("report.allExpenses")} meta={`${records.length} ${records.length === 1 ? "ROW" : "ROWS"}`} />
+        <SectionHeader title={t("report.allExpenses")} meta={`${records.length} ${records.length === 1 ? t("meta.row") : t("meta.rows")}`} />
         <Card padding={0}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
