@@ -62,13 +62,27 @@ export async function POST(req: NextRequest) {
     };
     const userId = body.userId?.trim();
     const keyword = body.merchantKeyword?.trim();
-    const category = body.category as ExpenseCategory | undefined;
+    const category =
+      typeof body.category === "string" && body.category.trim() ? body.category.trim() : null;
     if (!userId) return NextResponse.json({ error: "userId is required" }, { status: 400 });
     if (!keyword) return NextResponse.json({ error: "merchantKeyword is required" }, { status: 400 });
-    if (!category || !EXPENSE_CATEGORIES.includes(category)) {
+    if (!category) {
       return NextResponse.json({ error: "category must be one of the supported values" }, { status: 400 });
     }
     const supabase = getSupabase();
+    // Accept a built-in category, or one of this user's own custom categories.
+    if (!(EXPENSE_CATEGORIES as readonly string[]).includes(category)) {
+      const { data: cc, error: ccErr } = await supabase
+        .from("custom_categories")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("name", category)
+        .maybeSingle();
+      if (ccErr) throw ccErr;
+      if (!cc) {
+        return NextResponse.json({ error: "category must be one of the supported values" }, { status: 400 });
+      }
+    }
     const { data, error } = await supabase
       .from("category_rules")
       .upsert(
