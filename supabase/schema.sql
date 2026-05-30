@@ -99,3 +99,12 @@ create table if not exists public.budgets (
 
 create index if not exists budgets_group_idx on public.budgets (group_id);
 create index if not exists budgets_trip_idx on public.budgets (trip_id);
+
+-- Per-category budgets (idempotent). A NULL category is the original group-level /
+-- trip-level budget (unchanged behavior); a non-null category scopes the budget to one
+-- expense category. Multiple per-category rows share the same period_type, so they are
+-- managed by the API rather than the (group_id, trip_id, period_type) unique constraint.
+alter table public.budgets
+  add column if not exists category text default null;
+
+create index if not exists budgets_category_idx on public.budgets (group_id, category);

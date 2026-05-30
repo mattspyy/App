@@ -185,6 +185,7 @@ export type Budget = {
   id: string;
   groupId: string;
   tripId?: string;
+  category?: ExpenseCategory | null;
   amount: number;
   currency: string;
   periodType: BudgetPeriodType;

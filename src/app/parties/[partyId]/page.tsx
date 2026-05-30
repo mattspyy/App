@@ -7,6 +7,7 @@ import type { Budget, ExpenseRecord, Party, PartyMember, Trip } from "@/lib/type
 import { onlyConfirmed } from "@/lib/chartUtils";
 import { findMonthlyBudget } from "@/lib/budget";
 import MonthlyBudgetCard from "@/components/MonthlyBudgetCard";
+import CategoryBudgetsCard from "@/components/CategoryBudgetsCard";
 import DashboardCards from "@/components/DashboardCards";
 import CategoryPieChart from "@/components/CategoryPieChart";
 import SpendingLineChart from "@/components/SpendingLineChart";
@@ -268,6 +269,15 @@ export default function PartyDashboardPage() {
         <MonthlyBudgetCard
           groupId={party.partyId}
           budget={monthlyBudget}
+          records={records}
+          baseCurrency={baseCurrency}
+          canEdit={isAdmin}
+          userId={session.userId}
+          onChange={load}
+        />
+        <CategoryBudgetsCard
+          groupId={party.partyId}
+          budgets={budgets}
           records={records}
           baseCurrency={baseCurrency}
           canEdit={isAdmin}

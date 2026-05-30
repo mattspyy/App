@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import { BUDGET_PERIOD_TYPES, type Budget, type BudgetPeriodType } from "@/lib/types";
+import { BUDGET_PERIOD_TYPES, EXPENSE_CATEGORIES, type Budget, type BudgetPeriodType, type ExpenseCategory } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -24,6 +24,7 @@ type Row = {
   id: string;
   group_id: string;
   trip_id: string | null;
+  category: string | null;
   amount: number | string;
   currency: string;
   period_type: BudgetPeriodType;
@@ -39,6 +40,7 @@ function toApi(r: Row): Budget {
     id: r.id,
     groupId: r.group_id,
     tripId: r.trip_id ?? undefined,
+    category: (r.category as ExpenseCategory | null) ?? null,
     amount: typeof r.amount === "string" ? Number(r.amount) : r.amount,
     currency: r.currency,
     periodType: r.period_type,
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabase();
     let query = supabase
       .from("budgets")
-      .select("id, group_id, trip_id, amount, currency, period_type, start_date, end_date, created_by, created_at, updated_at");
+      .select("id, group_id, trip_id, category, amount, currency, period_type, start_date, end_date, created_by, created_at, updated_at");
     if (groupId) query = query.eq("group_id", groupId);
     if (tripId) query = query.eq("trip_id", tripId);
     const { data, error } = await query.order("created_at", { ascending: false });
@@ -84,6 +86,7 @@ export async function POST(req: NextRequest) {
       periodType?: string;
       startDate?: string | null;
       endDate?: string | null;
+      category?: string | null;
     };
     const groupId = body.groupId?.trim();
     const periodType = body.periodType as BudgetPeriodType | undefined;
@@ -99,6 +102,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "amount must be a non-negative number" }, { status: 400 });
     }
     if (!currency) return NextResponse.json({ error: "currency is required" }, { status: 400 });
+    const category =
+      typeof body.category === "string" && body.category.trim() ? body.category.trim() : null;
+    if (category && !(EXPENSE_CATEGORIES as readonly string[]).includes(category)) {
+      return NextResponse.json({ error: "invalid category" }, { status: 400 });
+    }
+    if (category && periodType !== "monthly") {
+      return NextResponse.json({ error: "category budgets must be monthly" }, { status: 400 });
+    }
     if (periodType === "trip_total" && !body.tripId) {
       return NextResponse.json({ error: "tripId is required for trip_total budgets" }, { status: 400 });
     }
@@ -106,6 +117,43 @@ export async function POST(req: NextRequest) {
     if (!(await isGroupMember(supabase, userId, groupId))) {
       return NextResponse.json({ error: "You are not a member of this group" }, { status: 403 });
     }
+
+    const COLS =
+      "id, group_id, trip_id, category, amount, currency, period_type, start_date, end_date, created_by, created_at, updated_at";
+
+    if (category) {
+      // Per-category budgets share (group_id, trip_id, period_type) with the group-level
+      // budget, so they cannot use the unique-constraint upsert. Manage them explicitly:
+      // update in place when one already exists for this category, otherwise insert.
+      const { data: existing, error: findErr } = await supabase
+        .from("budgets")
+        .select("id")
+        .eq("group_id", groupId)
+        .eq("period_type", periodType)
+        .eq("category", category)
+        .is("trip_id", null)
+        .maybeSingle();
+      if (findErr) throw findErr;
+      const payload = {
+        group_id: groupId,
+        trip_id: null,
+        category,
+        amount,
+        currency,
+        period_type: periodType,
+        start_date: body.startDate ?? null,
+        end_date: body.endDate ?? null,
+        created_by: body.userId ?? null,
+        updated_at: new Date().toISOString(),
+      };
+      const writer = existing
+        ? supabase.from("budgets").update(payload).eq("id", (existing as { id: string }).id)
+        : supabase.from("budgets").insert(payload);
+      const { data, error } = await writer.select(COLS).single();
+      if (error) throw error;
+      return NextResponse.json({ budget: toApi(data as Row) });
+    }
+
     const { data, error } = await supabase
       .from("budgets")
       .upsert(
@@ -122,7 +170,7 @@ export async function POST(req: NextRequest) {
         },
         { onConflict: "group_id,trip_id,period_type" },
       )
-      .select("id, group_id, trip_id, amount, currency, period_type, start_date, end_date, created_by, created_at, updated_at")
+      .select("id, group_id, trip_id, category, amount, currency, period_type, start_date, end_date, created_by, created_at, updated_at")
       .single();
     if (error) throw error;
     return NextResponse.json({ budget: toApi(data as Row) });

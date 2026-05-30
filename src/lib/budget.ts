@@ -1,4 +1,4 @@
-import type { Budget, ExpenseRecord } from "./types";
+import type { Budget, ExpenseCategory, ExpenseRecord } from "./types";
 import { isConfirmed } from "./chartUtils";
 
 function recordBaseFor(r: ExpenseRecord, currency: string): number | null {
@@ -36,7 +36,45 @@ export function sumConfirmedTotal(records: ExpenseRecord[], currency: string): n
 }
 
 export function findMonthlyBudget(budgets: Budget[], groupId: string): Budget | undefined {
-  return budgets.find((b) => b.groupId === groupId && b.periodType === "monthly" && !b.tripId);
+  return budgets.find((b) => b.groupId === groupId && b.periodType === "monthly" && !b.tripId && !b.category);
+}
+
+export type CategoryBudgetStatus = {
+  category: ExpenseCategory;
+  spent: number;
+  limit: number;
+  remaining: number;
+  percentage: number;
+  currency: string;
+};
+
+// Per-category budget status for the current month. Returns null when no budget is set
+// for the category. Mirrors the monthly group-budget computation (confirmed records only,
+// same calendar month, base-currency aware) but scoped to a single category.
+export function getCategoryBudgetStatus(
+  expenses: ExpenseRecord[],
+  budgets: Budget[],
+  category: ExpenseCategory,
+  refDate: Date = new Date(),
+): CategoryBudgetStatus | null {
+  const budget = budgets.find(
+    (b) => b.category === category && b.periodType === "monthly" && !b.tripId,
+  );
+  if (!budget) return null;
+  let spent = 0;
+  for (const r of expenses) {
+    if (!isConfirmed(r)) continue;
+    if (r.category !== category) continue;
+    const d = new Date(r.date);
+    if (Number.isNaN(d.getTime())) continue;
+    if (d.getFullYear() !== refDate.getFullYear() || d.getMonth() !== refDate.getMonth()) continue;
+    const v = recordBaseFor(r, budget.currency);
+    if (v != null) spent += v;
+  }
+  spent = Number(spent.toFixed(2));
+  const remaining = Number((budget.amount - spent).toFixed(2));
+  const percentage = budget.amount > 0 ? Math.min(100, (spent / budget.amount) * 100) : 0;
+  return { category, spent, limit: budget.amount, remaining, percentage, currency: budget.currency };
 }
 
 export function findTripBudget(budgets: Budget[], tripId: string): Budget | undefined {
