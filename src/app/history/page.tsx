@@ -2,7 +2,9 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session";
-import { EXPENSE_CATEGORIES, type ExpenseRecord, type Party } from "@/lib/types";
+import { type ExpenseRecord, type Party } from "@/lib/types";
+import { mergeCategoryOptions } from "@/lib/categories";
+import { useCustomCategories } from "@/lib/customCategories";
 import EmptyState from "@/components/EmptyState";
 import ExpenseCard from "@/components/ExpenseCard";
 import RefreshButton from "@/components/RefreshButton";
@@ -53,6 +55,8 @@ function HistoryInner() {
   const router = useRouter();
   const params = useSearchParams();
   const session = useSession();
+  const { categories: customCategories } = useCustomCategories(session?.userId);
+  const categoryOptions = mergeCategoryOptions(customCategories);
   const { t, language } = useLanguage();
   const [records, setRecords] = useState<ExpenseRecord[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
@@ -173,9 +177,9 @@ function HistoryInner() {
             </SelectChip>
             <SelectChip label={t("history.filterCategory")} value={category} onChange={(e) => setCategory(e.target.value)}>
               <option value="">{t("history.allCategories")}</option>
-              {EXPENSE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {categoryLabel(c, language)}
+              {categoryOptions.map((opt) => (
+                <option key={opt.name} value={opt.name}>
+                  {categoryLabel(opt.name, language)}
                 </option>
               ))}
             </SelectChip>

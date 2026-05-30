@@ -66,6 +66,17 @@ create table if not exists public.category_rules (
 create index if not exists category_rules_user_idx on public.category_rules (user_id);
 create index if not exists category_rules_keyword_idx on public.category_rules (merchant_keyword);
 
+create table if not exists public.custom_categories (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  name text not null,
+  color text not null default '#6B7280',
+  created_at timestamptz not null default now(),
+  unique (user_id, name)
+);
+
+create index if not exists custom_categories_user_idx on public.custom_categories (user_id);
+
 create table if not exists public.settlement_payments (
   id uuid primary key default gen_random_uuid(),
   from_user_id uuid not null references public.users(id) on delete cascade,

@@ -6,6 +6,7 @@ import { clearSession, setSession, useSession } from "@/lib/session";
 import { CURRENCIES } from "@/lib/types";
 import { useLanguage, SUPPORTED_LANGUAGES, type Language } from "@/lib/i18n";
 import { PageHeader, Card, Button, SectionHeader, Badge } from "@/components/ui";
+import CustomCategoriesSection from "@/components/CustomCategoriesSection";
 
 const ADMIN_USERNAMES = (process.env.NEXT_PUBLIC_ADMIN_USERNAMES || "")
   .split(",")
@@ -211,6 +212,8 @@ export default function SettingsPage() {
           </Card>
         </section>
       )}
+
+      <CustomCategoriesSection userId={session.userId} />
 
       <section>
         <SectionHeader title={t("settings.sessionTitle")} />

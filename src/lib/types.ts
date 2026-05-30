@@ -147,6 +147,19 @@ export type Trip = {
   notes?: string;
 };
 
+export type CategoryOption = {
+  name: string;
+  color: string;
+  isCustom: boolean;
+};
+
+export type CustomCategory = {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+};
+
 export type CategoryRule = {
   ruleId: string;
   familyId: string;

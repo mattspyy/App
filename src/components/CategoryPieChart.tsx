@@ -2,11 +2,15 @@
 import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import type { ExpenseRecord } from "@/lib/types";
 import { totalByCategory } from "@/lib/chartUtils";
-import { CATEGORY_COLORS } from "@/lib/categories";
+import { colorForCategory } from "@/lib/categories";
+import { useCustomCategories } from "@/lib/customCategories";
+import { useSession } from "@/lib/session";
 import { useLanguage, categoryLabel } from "@/lib/i18n";
 
 export default function CategoryPieChart({ records }: { records: ExpenseRecord[] }) {
   const { t, language } = useLanguage();
+  const session = useSession();
+  const { categories: customCategories } = useCustomCategories(session?.userId);
   const raw = totalByCategory(records);
   const data = raw.map((d) => ({ ...d, label: categoryLabel(d.category, language) }));
   return (
@@ -17,7 +21,7 @@ export default function CategoryPieChart({ records }: { records: ExpenseRecord[]
           <PieChart>
             <Pie data={data} dataKey="total" nameKey="label" outerRadius={80} label>
               {data.map((d) => (
-                <Cell key={d.category} fill={CATEGORY_COLORS[d.category] || "#71717a"} />
+                <Cell key={d.category} fill={colorForCategory(d.category, customCategories)} />
               ))}
             </Pie>
             <Tooltip />

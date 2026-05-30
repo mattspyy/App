@@ -2,11 +2,11 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session";
-import { CONFIDENCE_THRESHOLD } from "@/lib/categories";
+import { CONFIDENCE_THRESHOLD, mergeCategoryOptions } from "@/lib/categories";
+import { useCustomCategories } from "@/lib/customCategories";
 import { saveExpenseWithOfflineFallback } from "@/lib/pendingSync";
 import {
   CURRENCIES,
-  EXPENSE_CATEGORIES,
   PAYMENT_METHODS,
   type AIAnalysisResult,
   type ExpenseCategory,
@@ -20,6 +20,7 @@ import {
   type SplitParticipant,
   type SplitType,
   type Trip,
+  type CategoryOption,
 } from "@/lib/types";
 import {
   Card,
@@ -243,6 +244,8 @@ function ConfirmFormBody({
 }) {
   const router = useRouter();
   const { t, language } = useLanguage();
+  const { categories: customCategories } = useCustomCategories(session.userId);
+  const categoryOptions = mergeCategoryOptions(customCategories);
   const [form, setForm] = useState<FormState | null>(() =>
     buildInitialForm(session, isManual, initialGroupId, initialTripId),
   );
@@ -815,9 +818,9 @@ function ConfirmFormBody({
                     update("category", e.target.value as ExpenseCategory);
                   }}
                 >
-                  {EXPENSE_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {categoryLabel(c, language)}
+                  {categoryOptions.map((opt) => (
+                    <option key={opt.name} value={opt.name}>
+                      {categoryLabel(opt.name, language)}
                     </option>
                   ))}
                 </NativeSelect>
@@ -1147,7 +1150,7 @@ function ConfirmFormBody({
         </div>
       </details>
 
-      <ItemsSection form={form} setForm={setForm} />
+      <ItemsSection form={form} setForm={setForm} categoryOptions={categoryOptions} />
 
       <BottomActionBar>
         <Button type="submit" disabled={submitting} variant="accent" size="lg" full>
@@ -1166,9 +1169,11 @@ function ConfirmFormBody({
 function ItemsSection({
   form,
   setForm,
+  categoryOptions,
 }: {
   form: FormState;
   setForm: React.Dispatch<React.SetStateAction<FormState | null>>;
+  categoryOptions: CategoryOption[];
 }) {
   const { t, language } = useLanguage();
   function updateItem(id: string, patch: Partial<FormItem>) {
@@ -1280,9 +1285,9 @@ function ItemsSection({
                     onChange={(e) => updateItem(it.id, { category: e.target.value as ExpenseCategory | "" })}
                   >
                     <option value="">— Same as receipt —</option>
-                    {EXPENSE_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {categoryLabel(c, language)}
+                    {categoryOptions.map((opt) => (
+                      <option key={opt.name} value={opt.name}>
+                        {categoryLabel(opt.name, language)}
                       </option>
                     ))}
                   </NativeSelect>

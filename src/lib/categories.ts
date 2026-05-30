@@ -16,3 +16,38 @@ export const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
 };
 
 export const CONFIDENCE_THRESHOLD = 0.7;
+
+import type { CategoryOption, CustomCategory } from "./types";
+
+export const DEFAULT_CATEGORY_COLOR = "#6B7280";
+
+// Merge the hardcoded defaults with a user's custom categories.
+// Defaults come first; customs are appended (case-insensitive duplicates of a default dropped).
+export function mergeCategoryOptions(custom: CustomCategory[] = []): CategoryOption[] {
+  const defaults: CategoryOption[] = DEFAULT_CATEGORIES.map((name) => ({
+    name,
+    color: CATEGORY_COLORS[name],
+    isCustom: false,
+  }));
+  const defaultLower = new Set(DEFAULT_CATEGORIES.map((c) => c.toLowerCase()));
+  const seen = new Set<string>();
+  const customOptions: CategoryOption[] = [];
+  for (const c of custom) {
+    const name = (c.name || "").trim();
+    if (!name) continue;
+    const lower = name.toLowerCase();
+    if (defaultLower.has(lower) || seen.has(lower)) continue;
+    seen.add(lower);
+    customOptions.push({ name, color: c.color || DEFAULT_CATEGORY_COLOR, isCustom: true });
+  }
+  return [...defaults, ...customOptions];
+}
+
+// Resolve a display color for any category name (hardcoded or custom), gray when unknown.
+export function colorForCategory(name: string, custom: CustomCategory[] = []): string {
+  if ((DEFAULT_CATEGORIES as readonly string[]).includes(name)) {
+    return CATEGORY_COLORS[name as ExpenseCategory];
+  }
+  const found = custom.find((c) => c.name === name);
+  return found?.color || DEFAULT_CATEGORY_COLOR;
+}

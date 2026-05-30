@@ -156,6 +156,15 @@ const ZH_HK: Dictionary = {
   "settings.adminMeta": "僅限管理員",
   "settings.adminDesc": "操作工具：每位用戶嘅 AI 速率上限同帳戶刪除，需要另外密碼。",
   "settings.openAdmin": "開啟管理面板 →",
+  "settings.customCategories": "自訂分類",
+  "settings.customCategoriesMeta": "在預設分類以外新增自己的分類",
+  "settings.customCatDesc": "自訂分類會在預設分類之後顯示於分類選單。",
+  "settings.customCatNamePlaceholder": "分類名稱",
+  "settings.customCatColor": "顏色",
+  "settings.customCatAdd": "新增分類",
+  "settings.customCatCountFmt": "{count} / {max} 已使用",
+  "settings.customCatNone": "尚未有自訂分類。",
+  "settings.customCatBuiltinWarn": "此名稱與內建分類相同。",
   "settings.sessionTitle": "登入狀態",
   "settings.sessionDesc": "登出會清除這部裝置上的登入。你嘅資料仍會保留喺 Notion 同 Supabase。",
   "settings.language": "語言",
@@ -740,6 +749,15 @@ const EN: Dictionary = {
   "settings.adminMeta": "Admin only",
   "settings.adminDesc": "Operator tools: per-user AI rate limits and account deletion. Password-gated separately.",
   "settings.openAdmin": "Open admin \u2192",
+  "settings.customCategories": "Custom categories",
+  "settings.customCategoriesMeta": "Add your own categories on top of the defaults",
+  "settings.customCatDesc": "Custom categories appear after the defaults in category menus.",
+  "settings.customCatNamePlaceholder": "Category name",
+  "settings.customCatColor": "Color",
+  "settings.customCatAdd": "Add category",
+  "settings.customCatCountFmt": "{count} / {max} used",
+  "settings.customCatNone": "No custom categories yet.",
+  "settings.customCatBuiltinWarn": "This name matches a built-in category.",
   "settings.sessionTitle": "Session",
   "settings.sessionDesc": "Logging out clears your session on this device. Your data stays in Notion and Supabase.",
   "settings.language": "Language",
@@ -1324,6 +1342,15 @@ const ZH_CN: Dictionary = {
   "settings.adminMeta": "仅限管理员",
   "settings.adminDesc": "操作工具：每位用户的 AI 速率限制和账户删除，需另外密码。",
   "settings.openAdmin": "打开管理面板 →",
+  "settings.customCategories": "自定义分类",
+  "settings.customCategoriesMeta": "在预设分类以外新增自己的分类",
+  "settings.customCatDesc": "自定义分类会在预设分类之后显示于分类菜单。",
+  "settings.customCatNamePlaceholder": "分类名称",
+  "settings.customCatColor": "颜色",
+  "settings.customCatAdd": "新增分类",
+  "settings.customCatCountFmt": "{count} / {max} 已使用",
+  "settings.customCatNone": "尚未有自定义分类。",
+  "settings.customCatBuiltinWarn": "此名称与内建分类相同。",
   "settings.sessionTitle": "登录状态",
   "settings.sessionDesc": "登出会清除此设备上的登录。你的数据仍保留在 Notion 和 Supabase 中。",
   "settings.language": "语言",
@@ -1842,7 +1869,10 @@ export function useLanguage(): { language: Language; t: TranslateFn; setLanguage
 import type { ExpenseCategory, PaymentMethod, SplitType, SourceType } from "@/lib/types";
 
 export function categoryLabel(category: ExpenseCategory | string, lang: Language): string {
-  return translate(lang, `category.${category}`);
+  const key = `category.${category}`;
+  const label = translate(lang, key);
+  // Custom categories have no translation key — fall back to the raw name.
+  return label === key ? String(category) : label;
 }
 
 export function paymentMethodLabel(method: PaymentMethod | string | undefined | null, lang: Language): string {

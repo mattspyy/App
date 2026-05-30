@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
-import { EXPENSE_CATEGORIES, type Budget, type ExpenseCategory, type ExpenseRecord } from "@/lib/types";
+import { type Budget, type ExpenseCategory, type ExpenseRecord } from "@/lib/types";
 import { getCategoryBudgetStatus } from "@/lib/budget";
+import { mergeCategoryOptions } from "@/lib/categories";
+import { useCustomCategories } from "@/lib/customCategories";
 import { useLanguage, categoryLabel } from "@/lib/i18n";
 
 type Props = {
@@ -32,6 +34,8 @@ export default function CategoryBudgetsCard({
   onChange,
 }: Props) {
   const { t, language } = useLanguage();
+  const { categories: customCategories } = useCustomCategories(userId);
+  const categoryNames = mergeCategoryOptions(customCategories).map((o) => o.name);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,15 +46,13 @@ export default function CategoryBudgetsCard({
     if (b.category && b.periodType === "monthly" && !b.tripId) byCategory.set(b.category, b);
   }
 
-  const [drafts, setDrafts] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
-    for (const c of EXPENSE_CATEGORIES) init[c] = byCategory.get(c) ? String(byCategory.get(c)!.amount) : "";
-    return init;
-  });
+  // Drafts are (re)built from the merged category list when editing starts; the inputs
+  // read drafts[name] ?? "" so an empty initial map is fine.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   function startEditing() {
     const init: Record<string, string> = {};
-    for (const c of EXPENSE_CATEGORIES) init[c] = byCategory.get(c) ? String(byCategory.get(c)!.amount) : "";
+    for (const c of categoryNames) init[c] = byCategory.get(c) ? String(byCategory.get(c)!.amount) : "";
     setDrafts(init);
     setError(null);
     setEditing(true);
@@ -60,7 +62,7 @@ export default function CategoryBudgetsCard({
     setSaving(true);
     setError(null);
     try {
-      for (const c of EXPENSE_CATEGORIES) {
+      for (const c of categoryNames) {
         const raw = (drafts[c] ?? "").trim();
         const existing = byCategory.get(c);
         if (raw === "") {
@@ -106,7 +108,7 @@ export default function CategoryBudgetsCard({
     }
   }
 
-  const budgeted = EXPENSE_CATEGORIES
+  const budgeted = categoryNames
     .map((c) => getCategoryBudgetStatus(records, budgets, c as ExpenseCategory))
     .filter((s): s is NonNullable<typeof s> => s !== null);
 
@@ -119,7 +121,7 @@ export default function CategoryBudgetsCard({
         <div className="text-xs text-zinc-600">{t("budget.categoryTitle")}</div>
         {error && <div className="text-xs text-red-700">{error}</div>}
         <div className="space-y-1.5">
-          {EXPENSE_CATEGORIES.map((c) => (
+          {categoryNames.map((c) => (
             <label key={c} className="flex items-center gap-2">
               <span className="flex-1 text-zinc-700">{categoryLabel(c, language)}</span>
               <input

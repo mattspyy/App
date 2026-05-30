@@ -104,9 +104,6 @@ export async function POST(req: NextRequest) {
     if (!currency) return NextResponse.json({ error: "currency is required" }, { status: 400 });
     const category =
       typeof body.category === "string" && body.category.trim() ? body.category.trim() : null;
-    if (category && !(EXPENSE_CATEGORIES as readonly string[]).includes(category)) {
-      return NextResponse.json({ error: "invalid category" }, { status: 400 });
-    }
     if (category && periodType !== "monthly") {
       return NextResponse.json({ error: "category budgets must be monthly" }, { status: 400 });
     }
@@ -122,6 +119,17 @@ export async function POST(req: NextRequest) {
       "id, group_id, trip_id, category, amount, currency, period_type, start_date, end_date, created_by, created_at, updated_at";
 
     if (category) {
+      // Accept a built-in category, or one of this user's own custom categories.
+      if (!(EXPENSE_CATEGORIES as readonly string[]).includes(category)) {
+        const { data: cc, error: ccErr } = await supabase
+          .from("custom_categories")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("name", category)
+          .maybeSingle();
+        if (ccErr) throw ccErr;
+        if (!cc) return NextResponse.json({ error: "invalid category" }, { status: 400 });
+      }
       // Per-category budgets share (group_id, trip_id, period_type) with the group-level
       // budget, so they cannot use the unique-constraint upsert. Manage them explicitly:
       // update in place when one already exists for this category, otherwise insert.
