@@ -174,14 +174,22 @@ export async function listExpenses(opts: ListExpensesOptions): Promise<ExpenseRe
   if (opts.dateOnOrBefore) {
     filters.push({ property: "Date", date: { on_or_before: opts.dateOnOrBefore } });
   }
-  const res = await notion.databases.query({
-    database_id: getDatabaseId(),
-    filter: filters.length === 1 ? filters[0] : { and: filters },
-    sorts: [{ property: "Date", direction: "descending" }],
-    page_size: 100,
-  });
+  const filter = filters.length === 1 ? filters[0] : { and: filters };
+  const allResults: any[] = [];
+  let cursor: string | undefined = undefined;
+  do {
+    const res = await notion.databases.query({
+      database_id: getDatabaseId(),
+      filter,
+      sorts: [{ property: "Date", direction: "descending" }],
+      page_size: 100,
+      start_cursor: cursor,
+    });
+    allResults.push(...res.results);
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
 
-  return res.results
+  return allResults
     .filter((p: any) => p.object === "page" && p.properties)
     .map((p: any): ExpenseRecord => {
       const props = p.properties;

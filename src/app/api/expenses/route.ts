@@ -123,7 +123,10 @@ export async function GET(req: NextRequest) {
   }
   try {
     const records = await listExpenses({ familyId, tripId, excludeTripExpenses });
-    const enriched = await Promise.all(records.map((r) => fillBaseAmount(r, baseCurrency)));
+    // baseAmount is persisted at write time; only records missing it need FX recomputation.
+    const enriched = await Promise.all(
+      records.map((r) => (typeof r.baseAmount === "number" ? r : fillBaseAmount(r, baseCurrency))),
+    );
     return NextResponse.json({ records: enriched, baseCurrency });
   } catch (err) {
     console.error("/api/expenses GET error", err);
