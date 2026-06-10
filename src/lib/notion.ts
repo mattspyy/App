@@ -56,9 +56,8 @@ function jsonRichText(value: unknown) {
   return richText(JSON.stringify(value));
 }
 
-export async function createExpense(rec: ExpenseRecord): Promise<string> {
-  const notion = getClient();
-  const properties: Record<string, any> = {
+function buildExpenseProperties(rec: ExpenseRecord): Record<string, any> {
+  return {
     "Name": title(rec.merchant || "Untitled"),
     "Record ID": richText(rec.id),
     "Family ID": richText(rec.familyId),
@@ -92,11 +91,23 @@ export async function createExpense(rec: ExpenseRecord): Promise<string> {
     "AI Confidence": numberValue(rec.aiConfidence),
     "Notes": richText(rec.notes),
   };
+}
+
+export async function createExpense(rec: ExpenseRecord): Promise<string> {
+  const notion = getClient();
   const res = await notion.pages.create({
     parent: { database_id: getDatabaseId() },
-    properties,
+    properties: buildExpenseProperties(rec),
   });
   return res.id;
+}
+
+export async function updateExpense(pageId: string, rec: ExpenseRecord): Promise<void> {
+  const notion = getClient();
+  await notion.pages.update({
+    page_id: pageId,
+    properties: buildExpenseProperties(rec),
+  });
 }
 
 function readRichText(prop: any): string {
@@ -191,9 +202,12 @@ export async function listExpenses(opts: ListExpensesOptions): Promise<ExpenseRe
 
   return allResults
     .filter((p: any) => p.object === "page" && p.properties)
-    .map((p: any): ExpenseRecord => {
-      const props = p.properties;
-      return {
+    .map((p: any): ExpenseRecord => mapPageToRecord(p));
+}
+
+function mapPageToRecord(p: any): ExpenseRecord {
+  const props = p.properties;
+  return {
         id: readRichText(props["Record ID"]) || p.id,
         familyId: readRichText(props["Family ID"]),
         tripId: readRichText(props["Trip ID"]) || undefined,
@@ -227,6 +241,20 @@ export async function listExpenses(opts: ListExpensesOptions): Promise<ExpenseRe
         aiConfidence: readNumber(props["AI Confidence"]),
         notes: readRichText(props["Notes"]) || undefined,
         createdAt: readCreatedTime(props["Created At"]) || p.created_time,
-      };
-    });
+  };
+}
+
+export async function findExpensePage(
+  recordId: string,
+): Promise<{ pageId: string; record: ExpenseRecord } | null> {
+  if (!recordId) return null;
+  const notion = getClient();
+  const res = await notion.databases.query({
+    database_id: getDatabaseId(),
+    filter: { property: "Record ID", rich_text: { equals: recordId } },
+    page_size: 1,
+  });
+  const page = res.results.find((pp: any) => pp.object === "page" && pp.properties);
+  if (!page) return null;
+  return { pageId: (page as any).id, record: mapPageToRecord(page) };
 }

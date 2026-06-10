@@ -308,7 +308,7 @@ function ScanPageInner() {
           {lastMethod === "smart_add" && (
             <MethodLink
               href={`/scan/smart-add${queryString}`}
-              icon="\u2728"
+              icon={"\u2728"}
               title={t("scan.smartAdd")}
               hint={t("scan.smartAddHint")}
               accent
@@ -318,7 +318,7 @@ function ScanPageInner() {
           {lastMethod === "manual" && (
             <MethodLink
               href={manualHref}
-              icon="\u270F\uFE0F"
+              icon={"\u270F\uFE0F"}
               title={t("scan.manualAdd")}
               hint={t("scan.manualAddHint")}
               accent
@@ -347,7 +347,7 @@ function ScanPageInner() {
       <div style={{ display: "grid", gap: 10 }}>
         <MethodLink
           href={`/scan/smart-add${queryString}`}
-          icon="\u2728"
+          icon={"\u2728"}
           title={t("scan.smartAdd")}
           hint={t("scan.smartAddHint")}
           accent
@@ -355,7 +355,7 @@ function ScanPageInner() {
         />
         <MethodLink
           href={manualHref}
-          icon="\u270F\uFE0F"
+          icon={"\u270F\uFE0F"}
           title={t("scan.manualAdd")}
           hint={t("scan.manualAddHint")}
           onSelect={() => writeLastMethod("manual")}
@@ -424,7 +424,7 @@ function MethodLink({
           {hint}
         </div>
       </div>
-      <span aria-hidden style={{ color: "var(--color-ink-3)", fontSize: 18 }}>\u203A</span>
+      <span aria-hidden style={{ color: "var(--color-ink-3)", fontSize: 18 }}>{"\u203A"}</span>
     </Link>
   );
 }
@@ -447,7 +447,7 @@ function StepIcon({ state }: { state: "done" | "active" | "pending" }) {
           flexShrink: 0,
         }}
       >
-        \u2713
+        {"\u2713"}
       </span>
     );
   }

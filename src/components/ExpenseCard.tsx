@@ -1,5 +1,7 @@
 "use client";
+import { useRouter } from "next/navigation";
 import Avatar from "./Avatar";
+import { useSession } from "@/lib/session";
 import { useLanguage, categoryLabel, paymentMethodLabel } from "@/lib/i18n";
 import type { ExpenseRecord } from "@/lib/types";
 
@@ -28,6 +30,17 @@ type Props = {
 
 export default function ExpenseCard({ record, baseCurrency }: Props) {
   const { t, language } = useLanguage();
+  const session = useSession();
+  const router = useRouter();
+  const canEdit = !!session && session.userId === record.userId;
+  function handleEdit() {
+    try {
+      sessionStorage.setItem("fxt.editExpense", JSON.stringify(record));
+    } catch {
+      // sessionStorage may be unavailable; the confirm page handles a missing prefill.
+    }
+    router.push(`/scan/confirm?edit=${encodeURIComponent(record.id)}`);
+  }
   const payer = record.payerName || record.userName;
   const showConverted = typeof record.baseAmount === "number"
     && record.baseCurrency
@@ -57,6 +70,17 @@ export default function ExpenseCard({ record, baseCurrency }: Props) {
           )}
         </div>
       </div>
+      {canEdit && (
+        <div className="mt-2 pt-2 border-t border-zinc-100 flex justify-end">
+          <button
+            type="button"
+            onClick={handleEdit}
+            className="text-xs text-zinc-500 hover:text-zinc-900 underline"
+          >
+            {t("expenseCard.edit")}
+          </button>
+        </div>
+      )}
     </li>
   );
 }

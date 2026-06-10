@@ -100,12 +100,70 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function formFromRecord(rec: ExpenseRecord, session: Session): FormState {
+  const participantIds =
+    rec.participants && rec.participants.length > 0
+      ? rec.participants.map((p) => p.userId)
+      : [rec.payerId || rec.userId];
+  const customShares: Record<string, string> = {};
+  if (rec.splitType === "custom_amount" && rec.participants) {
+    for (const p of rec.participants) {
+      if (typeof p.share === "number") customShares[p.userId] = String(p.share);
+    }
+  }
+  return {
+    merchant: rec.merchant ?? "",
+    amount: rec.amount != null ? String(rec.amount) : "",
+    currency: rec.currency || session.baseCurrency || "HKD",
+    date: rec.date || todayIso(),
+    country: rec.country ?? "",
+    category: (rec.category as ExpenseCategory) || "Other",
+    paymentMethod: rec.paymentMethod || "Cash",
+    payerId: rec.payerId || rec.userId,
+    payerName: rec.payerName || rec.userName,
+    notes: rec.notes ?? "",
+    groupId: rec.familyId || "",
+    tripId: rec.tripId || "",
+    splitType: rec.splitType || "equal_split",
+    participantIds,
+    splitTouched: true,
+    customShares,
+    expenseType: rec.expenseType || "one_time",
+    spreadStartDate: rec.spreadStartDate ?? "",
+    spreadEndDate: rec.spreadEndDate ?? "",
+    sourceType: rec.sourceType || "manual",
+    imageUrl: rec.imageUrl,
+    aiConfidence: undefined,
+    items: (rec.items || []).map((it) => ({
+      id: it.id || newItemId(),
+      name: it.name,
+      totalPrice: String(it.totalPrice),
+      quantity: it.quantity != null ? String(it.quantity) : "",
+      unitPrice: it.unitPrice != null ? String(it.unitPrice) : "",
+      category: it.category || "",
+    })),
+  };
+}
+
 function buildInitialForm(
   session: Session,
   isManual: boolean,
   initialGroupId: string,
   initialTripId: string,
+  editId = "",
 ): FormState | null {
+  if (editId) {
+    if (typeof window === "undefined") return null;
+    const raw = sessionStorage.getItem("fxt.editExpense");
+    if (!raw) return null;
+    try {
+      const rec = JSON.parse(raw) as ExpenseRecord;
+      if (rec.id !== editId) return null;
+      return formFromRecord(rec, session);
+    } catch {
+      return null;
+    }
+  }
   const common = {
     payerId: session.userId,
     payerName: session.username,
@@ -211,6 +269,7 @@ function ConfirmInner() {
   const isManual = params.get("manual") === "1";
   const partyId = params.get("partyId") || "";
   const tripId = params.get("tripId") || "";
+  const editId = params.get("edit") || "";
   const session = useSession();
 
   useEffect(() => {
@@ -220,9 +279,10 @@ function ConfirmInner() {
   if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>Loading…</div>;
   return (
     <ConfirmFormBody
-      key={`${isManual ? "manual" : "ai"}|party=${partyId}|trip=${tripId}`}
+      key={`${editId ? `edit=${editId}` : isManual ? "manual" : "ai"}|party=${partyId}|trip=${tripId}`}
       session={session}
       isManual={isManual}
+      editId={editId}
       initialGroupId={partyId}
       initialTripId={tripId}
     />
@@ -234,11 +294,13 @@ function ConfirmInner() {
 function ConfirmFormBody({
   session,
   isManual,
+  editId,
   initialGroupId,
   initialTripId,
 }: {
   session: Session;
   isManual: boolean;
+  editId: string;
   initialGroupId: string;
   initialTripId: string;
 }) {
@@ -247,7 +309,7 @@ function ConfirmFormBody({
   const { categories: customCategories } = useCustomCategories(session.userId);
   const categoryOptions = mergeCategoryOptions(customCategories);
   const [form, setForm] = useState<FormState | null>(() =>
-    buildInitialForm(session, isManual, initialGroupId, initialTripId),
+    buildInitialForm(session, isManual, initialGroupId, initialTripId, editId),
   );
   const [parties, setParties] = useState<Party[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -258,7 +320,7 @@ function ConfirmFormBody({
   const [categoryRules, setCategoryRules] = useState<
     Array<{ id: string; merchantKeyword: string; category: ExpenseCategory }>
   >([]);
-  const [categoryTouched, setCategoryTouched] = useState(false);
+  const [categoryTouched, setCategoryTouched] = useState(editId !== "");
   const [savingRule, setSavingRule] = useState(false);
   const [ruleSaved, setRuleSaved] = useState(false);
   const [knownUsers, setKnownUsers] = useState<Array<{ userId: string; userName: string }>>([
@@ -616,6 +678,22 @@ function ConfirmFormBody({
         spreadEndDate:
           form.expenseType === "spread_across_days" ? form.spreadEndDate || undefined : undefined,
       };
+      if (editId) {
+        const res = await fetch("/api/expenses", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payload, id: editId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError((data as { error?: string }).error || "Failed to update");
+          setSubmitting(false);
+          return;
+        }
+        sessionStorage.removeItem("fxt.editExpense");
+        router.back();
+        return;
+      }
       const result = await saveExpenseWithOfflineFallback(payload);
       sessionStorage.removeItem("fxt.pendingExpense");
       const redirectTo = form.tripId
@@ -666,13 +744,13 @@ function ConfirmFormBody({
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720, margin: "0 auto" }}>
       <header style={{ marginBottom: 4 }}>
         <div className="fxt-eyebrow" style={{ marginBottom: 8 }}>
-          {isManual ? t("confirm.eyebrowManual") : form.sourceType === "smart_add" ? t("confirm.eyebrowSmart") : t("confirm.eyebrowAi")}
+          {editId ? t("confirm.eyebrowEdit") : isManual ? t("confirm.eyebrowManual") : form.sourceType === "smart_add" ? t("confirm.eyebrowSmart") : t("confirm.eyebrowAi")}
         </div>
         <h1
           className="fxt-display"
           style={{ fontSize: "clamp(28px, 4.6vw, 36px)", margin: 0, lineHeight: 1.1, letterSpacing: "-0.015em" }}
         >
-          {isManual ? t("confirm.titleManual") : t("confirm.titleConfirm")}
+          {editId ? t("confirm.titleEdit") : isManual ? t("confirm.titleManual") : t("confirm.titleConfirm")}
         </h1>
         <p style={{ color: "var(--color-ink-2)", fontSize: 13, margin: "8px 0 0", maxWidth: "56ch" }}>
           {t("confirm.subtitle")}
@@ -1154,7 +1232,7 @@ function ConfirmFormBody({
 
       <BottomActionBar>
         <Button type="submit" disabled={submitting} variant="accent" size="lg" full>
-          {submitting ? t("confirm.submitting") : t("confirm.submit")}
+          {submitting ? t("confirm.submitting") : editId ? t("confirm.submitEdit") : t("confirm.submit")}
         </Button>
         <Button type="button" onClick={() => router.back()} variant="secondary" size="lg">
           Cancel

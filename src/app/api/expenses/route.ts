@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import { createExpense, listExpenses } from "@/lib/notion";
+import { createExpense, findExpensePage, listExpenses, updateExpense } from "@/lib/notion";
 import { convertAmount } from "@/lib/exchangeRate";
 import type { DuplicateCheckStatus, ExpenseCategory, ExpenseRecord, ExpenseStatus, ExpenseType, SourceType, SplitType } from "@/lib/types";
 
@@ -241,6 +241,118 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("/api/expenses POST error", err);
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = (await req.json()) as Partial<ExpenseRecord>;
+    const recordId = body.id;
+    const requesterId = body.userId;
+    if (!recordId || !requesterId) {
+      return NextResponse.json({ error: "id and userId are required" }, { status: 400 });
+    }
+
+    const existing = await findExpensePage(recordId);
+    if (!existing) {
+      return NextResponse.json({ error: "Expense not found" }, { status: 404 });
+    }
+    // Only the original creator may edit their own expense.
+    if (existing.record.userId !== requesterId) {
+      return NextResponse.json({ error: "You can only edit your own expenses" }, { status: 403 });
+    }
+
+    const prev = existing.record;
+    const amount = typeof body.amount === "number" ? body.amount : prev.amount;
+    const currency = body.currency || prev.currency;
+    const baseCurrency = body.baseCurrency || prev.baseCurrency || DEFAULT_BASE;
+    const date = body.date || prev.date;
+
+    // Recompute base amount unless the client supplied explicit conversion values.
+    let exchangeRate = body.exchangeRate;
+    let baseAmount = body.baseAmount;
+    let exchangeRateDate = body.exchangeRateDate;
+    if (typeof baseAmount !== "number" || typeof exchangeRate !== "number") {
+      if (currency === baseCurrency) {
+        exchangeRate = 1;
+        baseAmount = amount;
+        exchangeRateDate = date;
+      } else {
+        const converted = await convertAmount(amount, currency, baseCurrency, date);
+        if (converted) {
+          exchangeRate = converted.rate;
+          baseAmount = Number(converted.baseAmount.toFixed(2));
+          exchangeRateDate = date;
+        } else {
+          exchangeRate = undefined;
+          baseAmount = undefined;
+          exchangeRateDate = undefined;
+        }
+      }
+    }
+
+    const pick = <T>(value: T | undefined, fallback: T): T => (value === undefined ? fallback : value);
+
+    const record: ExpenseRecord = {
+      ...prev,
+      // Identity / ownership are immutable on edit.
+      id: prev.id,
+      userId: prev.userId,
+      userName: pick(body.userName, prev.userName),
+      familyId: body.familyId || prev.familyId,
+      tripId: pick(body.tripId, prev.tripId),
+      payerId: pick(body.payerId, prev.payerId),
+      payerName: pick(body.payerName, prev.payerName),
+      merchant: pick(body.merchant, prev.merchant),
+      amount,
+      currency,
+      baseAmount,
+      baseCurrency,
+      exchangeRate,
+      exchangeRateDate,
+      category: (body.category as ExpenseCategory) || prev.category,
+      country: pick(body.country, prev.country),
+      date,
+      paymentMethod: pick(body.paymentMethod, prev.paymentMethod),
+      sourceType: (body.sourceType as SourceType) || prev.sourceType,
+      status: deriveStatus({ ...body, familyId: body.familyId || prev.familyId, amount, date }),
+      duplicateCheckStatus: prev.duplicateCheckStatus || "none",
+      expenseType: (body.expenseType as ExpenseType) || prev.expenseType || "one_time",
+      spreadStartDate: pick(body.spreadStartDate, prev.spreadStartDate),
+      spreadEndDate: pick(body.spreadEndDate, prev.spreadEndDate),
+      dailyAllocatedAmount: prev.dailyAllocatedAmount,
+      splitType: (body.splitType as SplitType | undefined) ?? prev.splitType,
+      participants: pick(body.participants, prev.participants),
+      imageUrl: pick(body.imageUrl, prev.imageUrl),
+      aiConfidence: pick(body.aiConfidence, prev.aiConfidence),
+      notes: pick(body.notes, prev.notes),
+      items: pick(body.items, prev.items),
+      createdAt: prev.createdAt,
+    };
+
+    if (record.expenseType === "spread_across_days" && record.spreadStartDate && record.spreadEndDate) {
+      const start = new Date(record.spreadStartDate);
+      const end = new Date(record.spreadEndDate);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end >= start) {
+        const days = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+        if (days > 0) {
+          record.dailyAllocatedAmount = Number((amount / days).toFixed(2));
+        }
+      }
+    } else {
+      record.dailyAllocatedAmount = undefined;
+    }
+
+    const missing = computeMissingFields(record);
+    record.missingFields = missing.length > 0 ? missing : undefined;
+
+    await updateExpense(existing.pageId, record);
+    return NextResponse.json({ record });
+  } catch (err) {
+    console.error("/api/expenses PATCH error", err);
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
