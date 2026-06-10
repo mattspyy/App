@@ -135,6 +135,23 @@ export default function PartyDashboardPage() {
     }
   }
 
+  async function handleDeleteExpense(rec: ExpenseRecord) {
+    if (!session) return;
+    if (!confirm(t("expenseCard.deleteConfirm"))) return;
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: rec.id, userId: session.userId }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setRecords((prev) => prev.filter((r) => r.id !== rec.id));
+    } catch (err) {
+      console.error("delete expense failed", err);
+      alert(t("expenseCard.deleteFailed"));
+    }
+  }
+
   async function handleDelete() {
     if (!session || !party) return;
     const ok = confirm(
@@ -373,7 +390,7 @@ export default function PartyDashboardPage() {
               title={t("groups.detail.recentExpenses")}
               meta={t("groups.detail.showingOfFmt", { shown: Math.min(records.length, 20), total: records.length })}
             />
-            <RecordsTable records={records.slice(0, 20)} baseCurrency={baseCurrency} />
+            <RecordsTable records={records.slice(0, 20)} baseCurrency={baseCurrency} onDelete={handleDeleteExpense} />
           </section>
         </>
       )}

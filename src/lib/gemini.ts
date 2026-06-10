@@ -6,6 +6,8 @@ const MODEL_ID = "gemini-2.5-flash";
 
 const SYSTEM_PROMPT = `You are an expense extraction assistant. Given an image — a receipt OR a payment screenshot from any app such as Apple Pay, Google Pay, banking apps, Alipay, WeChat Pay, online checkouts — extract spending information.
 
+The image may be in ANY language (Japanese, Korean, Chinese, Thai, Vietnamese, etc.). Detect the language automatically and extract every field with the same reliability regardless of language.
+
 Return ONLY a single JSON object with these keys:
 {
   "merchant": string | null,
@@ -34,8 +36,10 @@ Rules:
   - "Dinner 600 paid by Alex split with Ben" → merchant: "Dinner"
   - "Starbucks 42" → merchant: "Starbucks"
   - "Tokyo hotel 12000 yen" → merchant: "Tokyo hotel"
+  When the merchant name is printed on the receipt in a non-Latin script, keep it in its ORIGINAL script exactly as printed (Japanese kanji/kana, Korean hangul, Thai script, Chinese characters, etc.) — do NOT translate or romanize it. Title-case English applies only to subjects inferred from English text.
   Only return null if the input is purely numeric or contains no subject word at all.
-- currency must be a 3-letter ISO 4217 code if possible (USD, EUR, GBP, JPY, HKD, CNY, TWD, KRW, etc.). Translate symbols if unambiguous.
+- currency must be a 3-letter ISO 4217 code if possible (USD, EUR, GBP, JPY, HKD, CNY, TWD, KRW, etc.). Translate symbols if unambiguous. If no currency symbol or code is visible, infer it from context: the receipt's language, address, phone format, or tax labels (Japanese receipt → JPY, Korean receipt → KRW, Thai receipt → THB, Taiwanese receipt → TWD, etc.). Only return null when neither a symbol nor any context is available.
+- amount: parse numbers regardless of locale formatting. Thousands separators may be commas, periods, or spaces, and some locales swap comma/period roles (Japanese ¥1,200 and ¥1.200 both mean 1200 yen). Use the currency's minor-unit conventions to disambiguate — JPY and KRW have no decimal subunits, so a separator followed by exactly three digits is a thousands separator.
 - date must be ISO 8601 (YYYY-MM-DD). If unsure, return null.
 - paymentMethod examples: Cash, Card, Apple Pay, Google Pay, Alipay, WeChat Pay, Bank Transfer, Other.
 - If a field cannot be confidently identified, return null (except category — default to "Other").

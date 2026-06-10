@@ -110,6 +110,13 @@ export async function updateExpense(pageId: string, rec: ExpenseRecord): Promise
   });
 }
 
+// Soft-delete: Notion has no hard delete via API; archiving removes the page
+// from the database (same pattern as deleteTrip in notionTrips.ts).
+export async function archiveExpense(pageId: string): Promise<void> {
+  const notion = getClient();
+  await notion.pages.update({ page_id: pageId, archived: true });
+}
+
 function readRichText(prop: any): string {
   if (!prop || !Array.isArray(prop.rich_text)) return "";
   return prop.rich_text.map((t: any) => t.plain_text || "").join("");

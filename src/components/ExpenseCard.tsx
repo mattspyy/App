@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Avatar from "./Avatar";
 import { useSession } from "@/lib/session";
@@ -26,13 +27,20 @@ function Tag({ children, tone = "zinc" }: { children: React.ReactNode; tone?: "z
 type Props = {
   record: ExpenseRecord;
   baseCurrency: string;
+  onDelete?: (id: string) => void;
 };
 
-export default function ExpenseCard({ record, baseCurrency }: Props) {
+export default function ExpenseCard({ record, baseCurrency, onDelete }: Props) {
   const { t, language } = useLanguage();
   const session = useSession();
   const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
+  const [removed, setRemoved] = useState(false);
   const canEdit = !!session && session.userId === record.userId;
+  // Spread expenses are expanded into virtual per-day rows whose ids carry a
+  // "::date" suffix; edit/delete must target the underlying record.
+  const baseId = record.id.split("::")[0];
   function handleEdit() {
     try {
       sessionStorage.setItem("fxt.editExpense", JSON.stringify(record));
@@ -41,6 +49,28 @@ export default function ExpenseCard({ record, baseCurrency }: Props) {
     }
     router.push(`/scan/confirm?edit=${encodeURIComponent(record.id)}`);
   }
+  async function handleDelete() {
+    if (!session || deleting) return;
+    if (!confirm(t("expenseCard.deleteConfirm"))) return;
+    setDeleting(true);
+    setDeleteError(false);
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: baseId, userId: session.userId }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (onDelete) onDelete(baseId);
+      else setRemoved(true);
+    } catch {
+      setDeleteError(true);
+      setTimeout(() => setDeleteError(false), 2500);
+    } finally {
+      setDeleting(false);
+    }
+  }
+  if (removed) return null;
   const payer = record.payerName || record.userName;
   const showConverted = typeof record.baseAmount === "number"
     && record.baseCurrency
@@ -71,13 +101,24 @@ export default function ExpenseCard({ record, baseCurrency }: Props) {
         </div>
       </div>
       {canEdit && (
-        <div className="mt-2 pt-2 border-t border-zinc-100 flex justify-end">
+        <div className="mt-2 pt-2 border-t border-zinc-100 flex justify-end items-center gap-3">
+          {deleteError && (
+            <span className="text-xs text-rose-600 mr-auto">{t("expenseCard.deleteFailed")}</span>
+          )}
           <button
             type="button"
             onClick={handleEdit}
             className="text-xs text-zinc-500 hover:text-zinc-900 underline"
           >
             {t("expenseCard.edit")}
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="text-xs text-rose-600 hover:text-rose-800 underline disabled:opacity-50"
+          >
+            {deleting ? t("expenseCard.deleting") : t("expenseCard.delete")}
           </button>
         </div>
       )}

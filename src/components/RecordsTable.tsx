@@ -1,11 +1,14 @@
 "use client";
 import type { ExpenseRecord } from "@/lib/types";
 import Avatar from "./Avatar";
+import { useSession } from "@/lib/session";
 import { useLanguage, categoryLabel } from "@/lib/i18n";
 
 type Props = {
   records: ExpenseRecord[];
   baseCurrency?: string;
+  /** When provided, rows owned by the current user get a delete button. */
+  onDelete?: (record: ExpenseRecord) => void;
 };
 
 function formatAmount(value: number): string {
@@ -15,8 +18,9 @@ function formatAmount(value: number): string {
   });
 }
 
-export default function RecordsTable({ records, baseCurrency }: Props) {
+export default function RecordsTable({ records, baseCurrency, onDelete }: Props) {
   const { t, language } = useLanguage();
+  const session = useSession();
   return (
     <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
       <div className="text-sm font-medium p-4 border-b border-zinc-200">{t("records.recentExpenses")}</div>
@@ -29,6 +33,7 @@ export default function RecordsTable({ records, baseCurrency }: Props) {
               <th className="text-left px-3 py-2">{t("records.thCategory")}</th>
               <th className="text-left px-3 py-2">{t("records.thPayer")}</th>
               <th className="text-right px-3 py-2">{t("records.thAmount")}</th>
+              {onDelete && <th className="px-3 py-2" aria-label={t("expenseCard.delete")} />}
             </tr>
           </thead>
           <tbody>
@@ -50,11 +55,24 @@ export default function RecordsTable({ records, baseCurrency }: Props) {
                       <div className="text-xs text-zinc-500">~{formatAmount(r.baseAmount!)} {r.baseCurrency}</div>
                     )}
                   </td>
+                  {onDelete && (
+                    <td className="px-3 py-2 text-right">
+                      {session?.userId === r.userId && (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(r)}
+                          className="text-xs text-rose-600 hover:text-rose-800 underline"
+                        >
+                          {t("expenseCard.delete")}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}
             {records.length === 0 && (
-              <tr><td colSpan={5} className="text-center text-zinc-500 py-6">{t("records.empty")}</td></tr>
+              <tr><td colSpan={onDelete ? 6 : 5} className="text-center text-zinc-500 py-6">{t("records.empty")}</td></tr>
             )}
           </tbody>
         </table>

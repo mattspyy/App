@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import { createExpense, findExpensePage, listExpenses, updateExpense } from "@/lib/notion";
+import { archiveExpense, createExpense, findExpensePage, listExpenses, updateExpense } from "@/lib/notion";
 import { convertAmount } from "@/lib/exchangeRate";
 import type { DuplicateCheckStatus, ExpenseCategory, ExpenseRecord, ExpenseStatus, ExpenseType, SourceType, SplitType } from "@/lib/types";
 
@@ -352,6 +352,36 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ record });
   } catch (err) {
     console.error("/api/expenses PATCH error", err);
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    let body: { recordId?: string; userId?: string };
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const recordId = body.recordId?.trim();
+    const userId = body.userId?.trim();
+    if (!recordId || !userId) {
+      return NextResponse.json({ error: "recordId and userId are required" }, { status: 400 });
+    }
+    const existing = await findExpensePage(recordId);
+    if (!existing) {
+      return NextResponse.json({ error: "Expense not found" }, { status: 404 });
+    }
+    // Only the original creator may delete their own expense.
+    if (existing.record.userId !== userId) {
+      return NextResponse.json({ error: "You can only delete your own expenses" }, { status: 403 });
+    }
+    await archiveExpense(existing.pageId);
+    return NextResponse.json({ deleted: recordId });
+  } catch (err) {
+    console.error("/api/expenses DELETE error", err);
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

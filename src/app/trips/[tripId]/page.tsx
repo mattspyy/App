@@ -150,6 +150,12 @@ export default function TripDashboardPage() {
 
   const today = isoToday();
 
+  // ExpenseCard handles the confirm + DELETE call; we just drop the record
+  // from local state (spread-expense day rows share the deleted base id).
+  const handleExpenseDeleted = useCallback((id: string) => {
+    setRecords((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
   const stats = useMemo(() => {
     const confirmed = onlyConfirmed(records);
     const total = totalAmount(confirmed);
@@ -383,7 +389,7 @@ export default function TripDashboardPage() {
               </Card>
             ) : (
               <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-                {todayRecords.map((r) => <ExpenseCard key={r.id} record={r} baseCurrency={trip.baseCurrency} />)}
+                {todayRecords.map((r) => <ExpenseCard key={r.id} record={r} baseCurrency={trip.baseCurrency} onDelete={handleExpenseDeleted} />)}
               </ul>
             )}
           </section>
@@ -402,7 +408,7 @@ export default function TripDashboardPage() {
                 }
               />
               <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-                {recentRecords.map((r) => <ExpenseCard key={r.id} record={r} baseCurrency={trip.baseCurrency} />)}
+                {recentRecords.map((r) => <ExpenseCard key={r.id} record={r} baseCurrency={trip.baseCurrency} onDelete={handleExpenseDeleted} />)}
               </ul>
             </section>
           )}
