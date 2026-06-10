@@ -61,7 +61,7 @@ export default function Nav() {
           }}
         >
           <Link
-            href={session ? "/parties" : "/login"}
+            href={session ? "/" : "/login"}
             style={{
               fontFamily: "var(--font-display)",
               fontSize: 22,

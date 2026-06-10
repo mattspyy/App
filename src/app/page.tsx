@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session";
-import { useLanguage } from "@/lib/i18n";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { useLanguage, type TranslateFn } from "@/lib/i18n";
 import type { Budget, ExpenseRecord, Party, Trip } from "@/lib/types";
 import { sumConfirmedForMonth, findMonthlyBudget } from "@/lib/budget";
 import { isConfirmed } from "@/lib/chartUtils";
@@ -46,12 +47,79 @@ function byRecency(a: ExpenseRecord, b: ExpenseRecord): number {
   return ca < cb ? 1 : ca > cb ? -1 : 0;
 }
 
+// Greeting key from the user's local device time.
+function greetingKey(d: Date): string {
+  const h = d.getHours();
+  if (h >= 5 && h < 12) return "home.greetMorning";
+  if (h >= 12 && h < 18) return "home.greetAfternoon";
+  return "home.greetEvening";
+}
+
+type TrendRange = "7d" | "30d" | "year";
+
+const LOCALE_MAP: Record<string, string> = { "zh-HK": "zh-HK", en: "en-US", "zh-CN": "zh-CN" };
+
+function recordBase(r: ExpenseRecord): number {
+  return typeof r.baseAmount === "number" ? r.baseAmount : r.amount;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function compactNumber(v: number): string {
+  if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k`;
+  return String(Math.round(v));
+}
+
+// Daily totals (7d / 30d) or monthly totals (year) in base currency, confirmed only.
+function buildTrend(
+  records: ExpenseRecord[],
+  range: TrendRange,
+  locale: string,
+): { label: string; total: number }[] {
+  const confirmed = records.filter(isConfirmed);
+  if (range === "year") {
+    const year = new Date().getFullYear();
+    const totals = new Array(12).fill(0) as number[];
+    for (const r of confirmed) {
+      const d = new Date(r.date);
+      if (Number.isNaN(d.getTime()) || d.getFullYear() !== year) continue;
+      totals[d.getMonth()] += recordBase(r);
+    }
+    return totals.map((total, i) => ({
+      label: new Date(year, i, 1).toLocaleDateString(locale, { month: "short" }),
+      total: Number(total.toFixed(2)),
+    }));
+  }
+  const days = range === "7d" ? 7 : 30;
+  const byIso = new Map<string, number>();
+  for (const r of confirmed) {
+    const key = (r.date || "").slice(0, 10);
+    if (!key) continue;
+    byIso.set(key, (byIso.get(key) ?? 0) + recordBase(r));
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const out: { label: string; total: number }[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const iso = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    out.push({
+      label: `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`,
+      total: Number((byIso.get(iso) ?? 0).toFixed(2)),
+    });
+  }
+  return out;
+}
+
 type GroupRecords = { groupId: string; records: ExpenseRecord[] };
 
 export default function Dashboard() {
   const router = useRouter();
   const session = useSession();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -166,7 +234,11 @@ export default function Dashboard() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <PageHeader eyebrow={t("home.eyebrow")} title={t("home.title")} description={t("home.subtitle")} />
+      <PageHeader
+        eyebrow={t("home.eyebrow")}
+        title={t(greetingKey(now), { name: session.username })}
+        description={t("home.subtitle")}
+      />
 
       {error && <Alert tone="accent" title={t("common.unknownError")}>{error}</Alert>}
 
@@ -193,6 +265,7 @@ export default function Dashboard() {
                 onChange={load}
               />
             )}
+            <SpendingTrendChart records={myRecords} base={base} t={t} language={language} />
           </section>
 
           {/* SECTION 2 — Recent expenses across all groups (last 5). */}
@@ -290,5 +363,115 @@ function ActiveTripCard({ trip, t }: { trip: Trip; t: (k: string, v?: Record<str
         {"›"}
       </span>
     </Link>
+  );
+}
+
+function SpendingTrendChart({
+  records,
+  base,
+  t,
+  language,
+}: {
+  records: ExpenseRecord[];
+  base: string;
+  t: TranslateFn;
+  language: string;
+}) {
+  const [range, setRange] = useState<TrendRange>("7d");
+  const data = useMemo(
+    () => buildTrend(records, range, LOCALE_MAP[language] || "en-US"),
+    [records, range, language],
+  );
+  const options: { key: TrendRange; label: string }[] = [
+    { key: "7d", label: t("home.range7d") },
+    { key: "30d", label: t("home.range30d") },
+    { key: "year", label: t("home.rangeYear") },
+  ];
+  return (
+    <div
+      style={{
+        background: "var(--color-surface)",
+        border: "1px solid var(--color-line)",
+        borderRadius: "var(--radius-xl)",
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "var(--color-ink-3)",
+          }}
+        >
+          {t("home.trendTitle")}
+        </div>
+        <div style={{ display: "inline-flex", gap: 4 }}>
+          {options.map((o) => {
+            const active = o.key === range;
+            return (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => setRange(o.key)}
+                className="fxt-focus"
+                style={{
+                  fontSize: 12,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: `1px solid ${active ? "var(--color-accent)" : "var(--color-line)"}`,
+                  background: active ? "var(--color-accent-soft)" : "transparent",
+                  color: active ? "var(--color-accent-ink)" : "var(--color-ink-2)",
+                  cursor: "pointer",
+                }}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{ height: 200 }}>
+        <ResponsiveContainer>
+          <LineChart data={data} margin={{ left: 4, right: 8, top: 6, bottom: 4 }}>
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11, fill: "var(--color-ink-3)" }}
+              axisLine={{ stroke: "var(--color-line)" }}
+              tickLine={false}
+              interval="preserveStartEnd"
+              minTickGap={16}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "var(--color-ink-3)" }}
+              axisLine={false}
+              tickLine={false}
+              width={44}
+              tickFormatter={(v: number) => compactNumber(v)}
+            />
+            <Tooltip
+              formatter={(value) => [
+                `${Number(value as number).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${base}`,
+                t("home.trendTitle"),
+              ]}
+              contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid var(--color-line)" }}
+              labelStyle={{ color: "var(--color-ink-2)" }}
+            />
+            <Line type="monotone" dataKey="total" stroke="var(--color-accent)" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 }

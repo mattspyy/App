@@ -405,14 +405,32 @@ function ConfirmFormBody({
   }, [form?.groupId, session.userId, session.username]);
 
   // If only a trip was supplied, resolve its parent group automatically.
+  // A trip's stored familyId is its parent-group id when that maps to a real
+  // group the user belongs to; otherwise (legacy trips store the creator's
+  // userId there) fall back to the user's Personal group so a valid group is
+  // always pre-selected. The user can still change it via the group picker.
   useEffect(() => {
     if (!form) return;
     if (form.groupId || !form.tripId) return;
-    const t = trips.find((x) => x.tripId === form.tripId);
-    if (t && t.familyId) {
-      setForm((f) => (f ? { ...f, groupId: t.familyId } : f));
+    const trip = trips.find((x) => x.tripId === form.tripId);
+    if (!trip) return;
+    const parentGroup = parties.find((p) => p.partyId === trip.familyId);
+    if (parentGroup) {
+      setForm((f) => (f ? { ...f, groupId: parentGroup.partyId } : f));
+      return;
     }
-  }, [form, trips]);
+    const personal = parties
+      .filter(
+        (p) =>
+          p.type === "private" &&
+          p.createdBy === session.userId &&
+          p.partyName === "Personal",
+      )
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+    if (personal) {
+      setForm((f) => (f ? { ...f, groupId: personal.partyId } : f));
+    }
+  }, [form, trips, parties, session.userId]);
 
   // Personal-group fallback: default to the user's Personal group when there's
   // no explicit group/trip context (mirrors server-side helper).
