@@ -69,10 +69,13 @@ function shiftIso(date: string, days: number): string {
 }
 
 async function findPossibleDuplicates(record: ExpenseRecord): Promise<ExpenseRecord[]> {
-  if (!record.familyId || !record.date) return [];
+  if ((!record.familyId && !record.tripId) || !record.date) return [];
   try {
+    // Scan the group when the expense has one; standalone-trip expenses scan
+    // within their trip instead.
     const existing = await listExpenses({
-      familyId: record.familyId,
+      familyId: record.familyId || undefined,
+      tripId: record.familyId ? undefined : record.tripId,
       dateOnOrAfter: shiftIso(record.date, -DUPLICATE_SCAN_WINDOW_DAYS),
       dateOnOrBefore: shiftIso(record.date, DUPLICATE_SCAN_WINDOW_DAYS),
     });
@@ -138,9 +141,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as Partial<ExpenseRecord>;
-    if (!body.userId || typeof body.amount !== "number" || !body.familyId) {
+    // Standalone-trip expenses carry a tripId but no familyId; group expenses
+    // carry a familyId (with or without a tripId). Neither is invalid.
+    if (!body.userId || typeof body.amount !== "number" || (!body.familyId && !body.tripId)) {
       return NextResponse.json(
-        { error: "userId, amount, and familyId are required (tripId is optional)" },
+        { error: "userId, amount, and familyId or tripId are required" },
         { status: 400 },
       );
     }

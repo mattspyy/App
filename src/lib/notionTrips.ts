@@ -93,14 +93,18 @@ export async function createTrip(trip: Trip): Promise<string> {
   return res.id;
 }
 
-// Lists trips whose Family ID matches any of the given ids. Callers pass the
-// user's group partyIds (plus the userId itself so legacy trips, which stored
-// the creator's userId in Family ID, stay visible to their creator).
-export async function listTrips(familyIds: string[]): Promise<Trip[]> {
+// Lists trips whose Family ID matches any of the given group ids, plus (when
+// createdBy is given) all trips the user created. The createdBy branch is what
+// makes standalone trips (empty Family ID) and legacy trips (Family ID =
+// creator's userId) visible to their creator.
+export async function listTrips(familyIds: string[], createdBy?: string): Promise<Trip[]> {
   const ids = Array.from(new Set(familyIds.filter(Boolean)));
-  if (ids.length === 0) return [];
+  const filters: any[] = ids.map((id) => ({ property: "Family ID", rich_text: { equals: id } }));
+  if (createdBy) {
+    filters.push({ property: "Created By", rich_text: { equals: createdBy } });
+  }
+  if (filters.length === 0) return [];
   const notion = getClient();
-  const filters = ids.map((id) => ({ property: "Family ID", rich_text: { equals: id } }));
   const filter = filters.length === 1 ? filters[0] : { or: filters };
   const res = await notion.databases.query({
     database_id: getTripsDbId(),

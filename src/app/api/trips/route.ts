@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
   }
   try {
     const groupIds = await listUserGroupIds(userId);
-    // Include the userId itself so legacy trips (which stored the creator's
-    // userId in Family ID) remain visible to their creator.
-    const trips = await listTrips([...groupIds, userId]);
+    // The createdBy branch covers standalone trips (empty Family ID) and
+    // legacy trips (Family ID = creator's userId): both are creator-only.
+    const trips = await listTrips(groupIds, userId);
     return NextResponse.json({ trips });
   } catch (err) {
     console.error("/api/trips GET error", err);
@@ -43,27 +43,29 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    if (!body.groupId) {
-      return NextResponse.json({ error: "groupId is required" }, { status: 400 });
-    }
-    const supabase = getSupabase();
-    const { data: member, error: memberErr } = await supabase
-      .from("party_members")
-      .select("party_id")
-      .eq("party_id", body.groupId)
-      .eq("user_id", body.createdBy)
-      .maybeSingle();
-    if (memberErr) {
-      console.error("/api/trips POST membership lookup error", memberErr);
-      return NextResponse.json({ error: "Failed to verify group membership" }, { status: 500 });
-    }
-    if (!member) {
-      return NextResponse.json({ error: "You are not a member of this group" }, { status: 403 });
+    // groupId is optional: a trip linked to a group is visible to its members;
+    // a standalone trip (no group) stores an empty familyId and is visible to
+    // its creator only.
+    if (body.groupId) {
+      const supabase = getSupabase();
+      const { data: member, error: memberErr } = await supabase
+        .from("party_members")
+        .select("party_id")
+        .eq("party_id", body.groupId)
+        .eq("user_id", body.createdBy)
+        .maybeSingle();
+      if (memberErr) {
+        console.error("/api/trips POST membership lookup error", memberErr);
+        return NextResponse.json({ error: "Failed to verify group membership" }, { status: 500 });
+      }
+      if (!member) {
+        return NextResponse.json({ error: "You are not a member of this group" }, { status: 403 });
+      }
     }
     const trip: Trip = {
       tripId: body.tripId || uuidv4(),
       tripName: body.tripName,
-      familyId: body.groupId,
+      familyId: body.groupId || "",
       destination: body.destination,
       startDate: body.startDate,
       endDate: body.endDate,

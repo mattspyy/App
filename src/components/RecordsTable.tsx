@@ -9,6 +9,8 @@ type Props = {
   baseCurrency?: string;
   /** When provided, rows owned by the current user get a delete button. */
   onDelete?: (record: ExpenseRecord) => void;
+  /** tripId → trip name; rows with both a trip and a group get a small trip tag. */
+  tripNames?: Record<string, string>;
 };
 
 function formatAmount(value: number): string {
@@ -18,7 +20,7 @@ function formatAmount(value: number): string {
   });
 }
 
-export default function RecordsTable({ records, baseCurrency, onDelete }: Props) {
+export default function RecordsTable({ records, baseCurrency, onDelete, tripNames }: Props) {
   const { t, language } = useLanguage();
   const session = useSession();
   return (
@@ -46,7 +48,14 @@ export default function RecordsTable({ records, baseCurrency, onDelete }: Props)
               return (
                 <tr key={r.id} className="border-t border-zinc-100">
                   <td className="px-3 py-2 whitespace-nowrap">{r.date}</td>
-                  <td className="px-3 py-2">{r.merchant || t("common.dash")}</td>
+                  <td className="px-3 py-2">
+                    {r.merchant || t("common.dash")}
+                    {tripNames && r.tripId && r.familyId && (
+                      <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] border bg-emerald-50 text-emerald-700 border-emerald-200 whitespace-nowrap">
+                        {"\u2708"}{tripNames[r.tripId] ? ` ${tripNames[r.tripId]}` : ""}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">{categoryLabel(r.category, language)}</td>
                   <td className="px-3 py-2"><span className="inline-flex items-center gap-2"><Avatar name={r.payerName || r.userName} size={22} />{r.payerName || r.userName}</span></td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">

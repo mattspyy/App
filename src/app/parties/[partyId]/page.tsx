@@ -41,6 +41,7 @@ export default function PartyDashboardPage() {
   const [members, setMembers] = useState<PartyMember[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [tripNames, setTripNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState("");
@@ -77,6 +78,9 @@ export default function PartyDashboardPage() {
       if (t.ok) {
         const allTrips = (t.body.trips as Trip[]) || [];
         setTrips(allTrips.filter((x) => x.familyId === partyId));
+        // Full (unfiltered) name map so trip badges on expenses resolve even
+        // for trips outside this group.
+        setTripNames(Object.fromEntries(allTrips.map((x) => [x.tripId, x.tripName])));
       }
       setError(null);
     } catch (err) {
@@ -390,7 +394,7 @@ export default function PartyDashboardPage() {
               title={t("groups.detail.recentExpenses")}
               meta={t("groups.detail.showingOfFmt", { shown: Math.min(records.length, 20), total: records.length })}
             />
-            <RecordsTable records={records.slice(0, 20)} baseCurrency={baseCurrency} onDelete={handleDeleteExpense} />
+            <RecordsTable records={records.slice(0, 20)} baseCurrency={baseCurrency} onDelete={handleDeleteExpense} tripNames={tripNames} />
           </section>
         </>
       )}

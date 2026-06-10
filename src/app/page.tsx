@@ -145,6 +145,12 @@ export default function Dashboard() {
       const groups: Party[] = partiesBody.parties || [];
 
       // 2) Expenses per group, fetched in parallel (client fan-out).
+      // Deduplication: each expense is a single Notion record with exactly one
+      // Family ID, and each group is queried exactly once, so every record
+      // appears in perGroup at most once — an expense tagged with BOTH a trip
+      // and a group is still one record under its group and is counted once.
+      // Standalone-trip expenses (tripId only, no familyId) match no group
+      // query and are excluded here by design: they belong to the trip view.
       const perGroup: GroupRecords[] = await Promise.all(
         groups.map((g) =>
           fetch(`/api/expenses?familyId=${encodeURIComponent(g.partyId)}&baseCurrency=${baseEnc}`)

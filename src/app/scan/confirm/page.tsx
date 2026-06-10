@@ -405,16 +405,17 @@ function ConfirmFormBody({
   }, [form?.groupId, session.userId, session.username]);
 
   // If only a trip was supplied, resolve its parent group automatically.
-  // Trips now store their parent group's partyId in familyId, so use it
-  // directly. The Personal-group fallback only applies to legacy trips
-  // (created before the group picker), whose familyId is the creator's
-  // userId and therefore matches none of the user's groups. The user can
-  // still change the group via the picker.
+  // Trips store their parent group's partyId in familyId, so use it directly.
+  // Standalone trips (empty familyId) deliberately get NO group — the expense
+  // belongs to the trip only. The Personal-group fallback applies solely to
+  // legacy trips (familyId = creator's userId, matching none of the user's
+  // groups). The user can still change the group via the picker.
   useEffect(() => {
     if (!form) return;
     if (form.groupId || !form.tripId) return;
     const trip = trips.find((x) => x.tripId === form.tripId);
     if (!trip) return;
+    if (!trip.familyId) return;
     const parentGroup = parties.find((p) => p.partyId === trip.familyId);
     if (parentGroup) {
       setForm((f) => (f ? { ...f, groupId: parentGroup.partyId } : f));
@@ -623,7 +624,7 @@ function ConfirmFormBody({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form) return;
-    if (!form.groupId) {
+    if (!form.groupId && !form.tripId) {
       setError(t("confirm.errorPickGroup"));
       return;
     }
@@ -666,7 +667,7 @@ function ConfirmFormBody({
     setError(null);
     try {
       const payload: Partial<ExpenseRecord> = {
-        familyId: form.groupId,
+        familyId: form.groupId || undefined,
         tripId: form.tripId || undefined,
         status: "confirmed",
         userId: session.userId,
@@ -769,7 +770,11 @@ function ConfirmFormBody({
           !form.date.trim() && "date",
         ].filter((x): x is string => Boolean(x))
       : [];
-  const tripsForGroup = form.groupId ? trips.filter((t) => t.familyId === form.groupId) : [];
+  // With a group selected, offer that group's trips; with no group, offer
+  // standalone trips (no familyId) so trip-only expenses can be filed.
+  const tripsForGroup = form.groupId
+    ? trips.filter((t) => t.familyId === form.groupId)
+    : trips.filter((t) => !t.familyId);
 
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720, margin: "0 auto" }}>
@@ -845,7 +850,7 @@ function ConfirmFormBody({
               <NativeSelect
                 value={form.groupId}
                 onChange={(e) => setGroup(e.target.value)}
-                required
+                required={!form.tripId}
               >
                 <option value="">— Pick a group —</option>
                 {parties.map((p) => (
@@ -861,7 +866,6 @@ function ConfirmFormBody({
                 <NativeSelect
                   value={form.tripId}
                   onChange={(e) => update("tripId", e.target.value)}
-                  disabled={!form.groupId}
                 >
                   <option value="">— No trip —</option>
                   {tripsForGroup.map((t) => (

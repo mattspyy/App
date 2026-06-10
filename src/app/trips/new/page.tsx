@@ -31,19 +31,13 @@ export default function NewTripPage() {
     if (!session) router.replace("/login");
   }, [session, router]);
 
-  // The trip must belong to one of the user's groups; preselect when there is
-  // only one to choose from.
+  // Linking a group is optional: a trip with a group is visible to all its
+  // members; a trip without one is personal to the creator.
   useEffect(() => {
     if (!session) return;
     fetch(`/api/parties?userId=${encodeURIComponent(session.userId)}`)
       .then((r) => (r.ok ? r.json() : { parties: [] }))
-      .then((b) => {
-        const list = (b.parties as Party[]) || [];
-        setGroups(list);
-        if (list.length === 1) {
-          setGroupId((cur) => cur || list[0].partyId);
-        }
-      })
+      .then((b) => setGroups((b.parties as Party[]) || []))
       .catch(() => setGroups([]))
       .finally(() => setGroupsLoaded(true));
   }, [session]);
@@ -76,16 +70,12 @@ export default function NewTripPage() {
       setError(t("tripsNew.nameRequired"));
       return;
     }
-    if (!groupId) {
-      setError(t("tripsNew.groupRequired"));
-      return;
-    }
     setSubmitting(true);
     setError(null);
     try {
-      const payload: Partial<Trip> & { groupId: string } = {
+      const payload: Partial<Trip> & { groupId?: string } = {
         tripName: tripName.trim(),
-        groupId,
+        groupId: groupId || undefined,
         destination: destination.trim() || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
@@ -160,7 +150,6 @@ export default function NewTripPage() {
                     className="fxt-focus"
                     value={groupId}
                     onChange={(e) => setGroupId(e.target.value)}
-                    required
                     style={{
                       appearance: "none",
                       width: "100%",

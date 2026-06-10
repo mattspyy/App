@@ -28,9 +28,11 @@ type Props = {
   record: ExpenseRecord;
   baseCurrency: string;
   onDelete?: (id: string) => void;
+  /** Resolved trip name for the trip badge (shown when the expense belongs to both a trip and a group). */
+  tripName?: string;
 };
 
-export default function ExpenseCard({ record, baseCurrency, onDelete }: Props) {
+export default function ExpenseCard({ record, baseCurrency, onDelete, tripName }: Props) {
   const { t, language } = useLanguage();
   const session = useSession();
   const router = useRouter();
@@ -83,6 +85,9 @@ export default function ExpenseCard({ record, baseCurrency, onDelete }: Props) {
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <Tag>{categoryLabel(record.category, language)}</Tag>
             {record.paymentMethod && <Tag tone="blue">{paymentMethodLabel(record.paymentMethod, language)}</Tag>}
+            {record.tripId && record.familyId && (
+              <Tag tone="emerald">{"\u2708"}{tripName ? ` ${tripName}` : ""}</Tag>
+            )}
             {record.status === "needs_review" && <Tag tone="amber">{t("expenseCard.needsReview")}</Tag>}
             {record.status === "draft" && <Tag tone="rose">{t("expenseCard.draft")}</Tag>}
           </div>
