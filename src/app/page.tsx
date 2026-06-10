@@ -149,8 +149,6 @@ export default function Dashboard() {
       // Family ID, and each group is queried exactly once, so every record
       // appears in perGroup at most once — an expense tagged with BOTH a trip
       // and a group is still one record under its group and is counted once.
-      // Standalone-trip expenses (tripId only, no familyId) match no group
-      // query and are excluded here by design: they belong to the trip view.
       const perGroup: GroupRecords[] = await Promise.all(
         groups.map((g) =>
           fetch(`/api/expenses?familyId=${encodeURIComponent(g.partyId)}&baseCurrency=${baseEnc}`)
@@ -159,7 +157,7 @@ export default function Dashboard() {
             .catch(() => ({ groupId: g.partyId, records: [] as ExpenseRecord[] })),
         ),
       );
-      setAllRecords(perGroup.flatMap((p) => p.records));
+      const groupRecords = perGroup.flatMap((p) => p.records);
 
       // 3) Personal group: its records + monthly budget feed the budget bar.
       const personal = groups.find((g) => isPersonalGroup(g, uid)) || null;
@@ -181,7 +179,13 @@ export default function Dashboard() {
         setPersonalBudget(undefined);
       }
 
-      // 4) Active trip (today within its date range).
+      // 4) Trips: active-trip card + standalone-trip expenses.
+      // Standalone trips (no familyId) can never show up in the group fan-out
+      // above, so their expenses are fetched per trip and appended. No
+      // deduplication is needed for the merge: a record either has a familyId
+      // (returned exactly once by its group's query, never here) or has none
+      // (returned only here) — the two sets are disjoint by construction.
+      let standaloneRecords: ExpenseRecord[] = [];
       try {
         const tRes = await fetch(`/api/trips?userId=${encodeURIComponent(uid)}`);
         if (tRes.ok) {
@@ -189,10 +193,24 @@ export default function Dashboard() {
           const trips: Trip[] = tBody.trips || [];
           const today = todayIso();
           setActiveTrip(trips.find((tr) => isActiveTrip(tr, today)) || null);
+          const standaloneTrips = trips.filter((tr) => !tr.familyId);
+          const perTrip = await Promise.all(
+            standaloneTrips.map((tr) =>
+              fetch(`/api/expenses?tripId=${encodeURIComponent(tr.tripId)}&baseCurrency=${baseEnc}`)
+                .then((r) => (r.ok ? r.json() : { records: [] }))
+                .then((b) => (b.records || []) as ExpenseRecord[])
+                .catch(() => [] as ExpenseRecord[]),
+            ),
+          );
+          standaloneRecords = perTrip.flat();
         }
       } catch {
-        // Active trip is optional context; ignore failures.
+        // Trip data is additive context; render group records without it.
       }
+      // myRecords (month total, trend chart, recent list) derives from
+      // allRecords via useMemo with the payerId filter, so standalone-trip
+      // expenses flow into all dashboard numbers from here.
+      setAllRecords([...groupRecords, ...standaloneRecords]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
