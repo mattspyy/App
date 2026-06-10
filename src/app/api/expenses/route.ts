@@ -294,19 +294,19 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    const pick = <T>(value: T | undefined, fallback: T): T => (value === undefined ? fallback : value);
-
+    // Editable fields are body-authoritative: the confirm form submits a full
+    // snapshot, so a missing/empty value means the user cleared the field. Only
+    // identity/ownership and creation time are preserved from the stored record.
     const record: ExpenseRecord = {
-      ...prev,
-      // Identity / ownership are immutable on edit.
       id: prev.id,
       userId: prev.userId,
-      userName: pick(body.userName, prev.userName),
+      createdAt: prev.createdAt,
       familyId: body.familyId || prev.familyId,
-      tripId: pick(body.tripId, prev.tripId),
-      payerId: pick(body.payerId, prev.payerId),
-      payerName: pick(body.payerName, prev.payerName),
-      merchant: pick(body.merchant, prev.merchant),
+      tripId: body.tripId || undefined,
+      userName: body.userName || prev.userName,
+      payerId: body.payerId || prev.payerId,
+      payerName: body.payerName || prev.payerName,
+      merchant: body.merchant,
       amount,
       currency,
       baseAmount,
@@ -314,23 +314,22 @@ export async function PATCH(req: NextRequest) {
       exchangeRate,
       exchangeRateDate,
       category: (body.category as ExpenseCategory) || prev.category,
-      country: pick(body.country, prev.country),
+      country: body.country,
       date,
-      paymentMethod: pick(body.paymentMethod, prev.paymentMethod),
+      paymentMethod: body.paymentMethod,
       sourceType: (body.sourceType as SourceType) || prev.sourceType,
       status: deriveStatus({ ...body, familyId: body.familyId || prev.familyId, amount, date }),
       duplicateCheckStatus: prev.duplicateCheckStatus || "none",
-      expenseType: (body.expenseType as ExpenseType) || prev.expenseType || "one_time",
-      spreadStartDate: pick(body.spreadStartDate, prev.spreadStartDate),
-      spreadEndDate: pick(body.spreadEndDate, prev.spreadEndDate),
-      dailyAllocatedAmount: prev.dailyAllocatedAmount,
-      splitType: (body.splitType as SplitType | undefined) ?? prev.splitType,
-      participants: pick(body.participants, prev.participants),
-      imageUrl: pick(body.imageUrl, prev.imageUrl),
-      aiConfidence: pick(body.aiConfidence, prev.aiConfidence),
-      notes: pick(body.notes, prev.notes),
-      items: pick(body.items, prev.items),
-      createdAt: prev.createdAt,
+      expenseType: (body.expenseType as ExpenseType) || "one_time",
+      spreadStartDate: body.spreadStartDate,
+      spreadEndDate: body.spreadEndDate,
+      dailyAllocatedAmount: undefined,
+      splitType: body.splitType as SplitType | undefined,
+      participants: body.participants,
+      imageUrl: body.imageUrl,
+      aiConfidence: body.aiConfidence,
+      notes: body.notes,
+      items: body.items,
     };
 
     if (record.expenseType === "spread_across_days" && record.spreadStartDate && record.spreadEndDate) {

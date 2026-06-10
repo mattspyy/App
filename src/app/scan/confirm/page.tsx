@@ -697,10 +697,22 @@ function ConfirmFormBody({
           form.expenseType === "spread_across_days" ? form.spreadEndDate || undefined : undefined,
       };
       if (editId) {
+        // Edit is body-authoritative: send clearable fields as explicit values
+        // (empty strings) instead of `|| undefined`, so blanking a field clears
+        // it on save rather than being dropped from the JSON body.
+        const editBody = {
+          ...payload,
+          id: editId,
+          merchant: form.merchant,
+          notes: form.notes,
+          country: form.country,
+          tripId: form.tripId,
+          paymentMethod: form.paymentMethod,
+        };
         const res = await fetch("/api/expenses", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...payload, id: editId }),
+          body: JSON.stringify(editBody),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
