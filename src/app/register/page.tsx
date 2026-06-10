@@ -38,7 +38,7 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t("register.errorGeneric"));
       setSession(data.session);
-      router.push("/parties");
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("register.errorUnknown"));
     } finally {

@@ -14,6 +14,25 @@ type Staged = { dataUri: string; sourceType: SourceType };
 const STEP_INTERVAL_MS = 900;
 const STEP_COUNT = 6;
 
+const LAST_METHOD_KEY = "fxt.lastAddMethod";
+type AddMethod = "receipt" | "screenshot" | "smart_add" | "manual";
+const VALID_METHODS: AddMethod[] = ["receipt", "screenshot", "smart_add", "manual"];
+
+function readLastMethod(): AddMethod | null {
+  if (typeof window === "undefined") return null;
+  const v = window.localStorage.getItem(LAST_METHOD_KEY);
+  return v && (VALID_METHODS as string[]).includes(v) ? (v as AddMethod) : null;
+}
+
+function writeLastMethod(m: AddMethod): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LAST_METHOD_KEY, m);
+  } catch {
+    // localStorage may be unavailable (private mode); last-used is best-effort.
+  }
+}
+
 function ScanPageInner() {
   const session = useSession();
   const router = useRouter();
@@ -44,6 +63,10 @@ function ScanPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [fetchDone, setFetchDone] = useState(false);
+  const [lastMethod, setLastMethod] = useState<AddMethod | null>(null);
+  useEffect(() => {
+    setLastMethod(readLastMethod());
+  }, []);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -69,6 +92,7 @@ function ScanPageInner() {
 
   function handleFile(dataUri: string, sourceType: SourceType) {
     setError(null);
+    if (sourceType === "receipt" || sourceType === "screenshot") writeLastMethod(sourceType);
     setStaged({ dataUri, sourceType });
   }
 
@@ -263,6 +287,47 @@ function ScanPageInner() {
         </p>
       </header>
 
+      {lastMethod && (
+        <section style={{ display: "grid", gap: 8 }}>
+          <SectionHeader title={t("scan.lastUsed")} />
+          {lastMethod === "receipt" && (
+            <UploadBox
+              label={t("scan.scanReceipt")}
+              hint={t("scan.scanReceiptHint")}
+              capture="environment"
+              onFile={(uri) => handleFile(uri, "receipt")}
+            />
+          )}
+          {lastMethod === "screenshot" && (
+            <UploadBox
+              label={t("scan.uploadScreenshot")}
+              hint={t("scan.uploadScreenshotHint")}
+              onFile={(uri) => handleFile(uri, "screenshot")}
+            />
+          )}
+          {lastMethod === "smart_add" && (
+            <MethodLink
+              href={`/scan/smart-add${queryString}`}
+              icon="\u2728"
+              title={t("scan.smartAdd")}
+              hint={t("scan.smartAddHint")}
+              accent
+              onSelect={() => writeLastMethod("smart_add")}
+            />
+          )}
+          {lastMethod === "manual" && (
+            <MethodLink
+              href={manualHref}
+              icon="\u270F\uFE0F"
+              title={t("scan.manualAdd")}
+              hint={t("scan.manualAddHint")}
+              accent
+              onSelect={() => writeLastMethod("manual")}
+            />
+          )}
+        </section>
+      )}
+
       <SectionHeader title={t("scan.fromImage")} meta={t("scan.fromImageMeta")} />
       <div style={{ display: "grid", gap: 10 }}>
         <UploadBox
@@ -286,12 +351,14 @@ function ScanPageInner() {
           title={t("scan.smartAdd")}
           hint={t("scan.smartAddHint")}
           accent
+          onSelect={() => writeLastMethod("smart_add")}
         />
         <MethodLink
           href={manualHref}
           icon="\u270F\uFE0F"
           title={t("scan.manualAdd")}
           hint={t("scan.manualAddHint")}
+          onSelect={() => writeLastMethod("manual")}
         />
       </div>
     </div>
@@ -304,16 +371,19 @@ function MethodLink({
   title,
   hint,
   accent = false,
+  onSelect,
 }: {
   href: string;
   icon: string;
   title: string;
   hint: string;
   accent?: boolean;
+  onSelect?: () => void;
 }) {
   return (
     <Link
       href={href}
+      onClick={onSelect}
       className="fxt-focus"
       style={{
         display: "flex",

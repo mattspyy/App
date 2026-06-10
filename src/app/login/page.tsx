@@ -31,7 +31,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t("login.errorGeneric"));
       setSession(data.session);
-      router.push("/parties");
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("login.errorUnknown"));
     } finally {
