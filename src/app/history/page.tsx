@@ -105,6 +105,12 @@ function HistoryInner() {
 
   const { pulling, distance, refreshing, trigger } = usePullToRefresh(loadExpenses);
 
+  // Day groups, counts, and totals are derived from `records` via useMemo, so
+  // dropping the record here updates the headers immediately.
+  const handleExpenseDeleted = useCallback((id: string) => {
+    setRecords((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
   const users = useMemo(
     () => Array.from(new Set(records.map((r) => r.payerName || r.userName))).filter(Boolean),
     [records],
@@ -250,7 +256,7 @@ function HistoryInner() {
                 }}
               >
                 {g.records.map((r) => (
-                  <ExpenseCard key={r.id} record={r} baseCurrency={baseCurrency} />
+                  <ExpenseCard key={r.id} record={r} baseCurrency={baseCurrency} onDelete={handleExpenseDeleted} />
                 ))}
               </ul>
             </li>

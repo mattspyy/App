@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session";
 import { CURRENCIES, type Party, type Trip } from "@/lib/types";
@@ -13,6 +14,7 @@ export default function NewTripPage() {
   const { t } = useLanguage();
   const [tripName, setTripName] = useState("");
   const [groups, setGroups] = useState<Party[]>([]);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [groupId, setGroupId] = useState("");
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -42,7 +44,8 @@ export default function NewTripPage() {
           setGroupId((cur) => cur || list[0].partyId);
         }
       })
-      .catch(() => setGroups([]));
+      .catch(() => setGroups([]))
+      .finally(() => setGroupsLoaded(true));
   }, [session]);
 
   useEffect(() => {
@@ -181,6 +184,37 @@ export default function NewTripPage() {
                 <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 6 }}>
                   {t("tripsNew.groupHelper")}
                 </div>
+                {groupsLoaded && groups.length === 0 && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: "10px 12px",
+                      background: "var(--color-amber-soft, var(--color-bg-soft))",
+                      border: "1px solid var(--color-line)",
+                      borderRadius: "var(--radius-md)",
+                      fontSize: 13,
+                      color: "var(--color-ink-2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span>{t("tripsNew.noGroups")}</span>
+                    <Link
+                      href="/parties/new"
+                      style={{
+                        color: "var(--color-accent-ink)",
+                        textDecoration: "underline",
+                        textUnderlineOffset: 3,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {t("tripsNew.noGroupsCta")}
+                    </Link>
+                  </div>
+                )}
               </div>
               <TextField
                 label={t("tripsNew.tripNameLabel")}

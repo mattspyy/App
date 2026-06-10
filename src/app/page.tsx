@@ -202,6 +202,13 @@ export default function Dashboard() {
     load();
   }, [session, router, load]);
 
+  // Month total, trend, and recent list are all derived from these states via
+  // useMemo, so dropping the record here recalculates them immediately.
+  const handleExpenseDeleted = useCallback((id: string) => {
+    setAllRecords((prev) => prev.filter((r) => r.id !== id));
+    setPersonalRecords((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
   // "My" spending = expenses this user paid for, aggregated across all groups.
   const myRecords = useMemo(() => {
     if (!session) return [];
@@ -288,7 +295,7 @@ export default function Dashboard() {
             ) : (
               <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
                 {recent.map((r) => (
-                  <ExpenseCard key={r.id} record={r} baseCurrency={base} />
+                  <ExpenseCard key={r.id} record={r} baseCurrency={base} onDelete={handleExpenseDeleted} />
                 ))}
               </ul>
             )}
