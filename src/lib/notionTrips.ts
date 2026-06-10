@@ -93,11 +93,18 @@ export async function createTrip(trip: Trip): Promise<string> {
   return res.id;
 }
 
-export async function listTrips(createdBy: string): Promise<Trip[]> {
+// Lists trips whose Family ID matches any of the given ids. Callers pass the
+// user's group partyIds (plus the userId itself so legacy trips, which stored
+// the creator's userId in Family ID, stay visible to their creator).
+export async function listTrips(familyIds: string[]): Promise<Trip[]> {
+  const ids = Array.from(new Set(familyIds.filter(Boolean)));
+  if (ids.length === 0) return [];
   const notion = getClient();
+  const filters = ids.map((id) => ({ property: "Family ID", rich_text: { equals: id } }));
+  const filter = filters.length === 1 ? filters[0] : { or: filters };
   const res = await notion.databases.query({
     database_id: getTripsDbId(),
-    filter: { property: "Family ID", rich_text: { equals: createdBy } },
+    filter: filter as any,
     sorts: [{ property: "Start Date", direction: "descending" }],
     page_size: 100,
   });
@@ -106,16 +113,14 @@ export async function listTrips(createdBy: string): Promise<Trip[]> {
     .map(fromPage);
 }
 
-export async function getTrip(createdBy: string, tripId: string): Promise<Trip | null> {
+// Looks a trip up by Trip ID alone; authorization (creator or group member)
+// is the caller's responsibility.
+export async function getTrip(tripId: string): Promise<Trip | null> {
+  if (!tripId) return null;
   const notion = getClient();
   const res = await notion.databases.query({
     database_id: getTripsDbId(),
-    filter: {
-      and: [
-        { property: "Family ID", rich_text: { equals: createdBy } },
-        { property: "Trip ID", rich_text: { equals: tripId } },
-      ],
-    },
+    filter: { property: "Trip ID", rich_text: { equals: tripId } },
     page_size: 1,
   });
   const page = res.results[0];
@@ -124,16 +129,12 @@ export async function getTrip(createdBy: string, tripId: string): Promise<Trip |
 }
 
 
-export async function deleteTrip(createdBy: string, tripId: string): Promise<boolean> {
+export async function deleteTrip(tripId: string): Promise<boolean> {
+  if (!tripId) return false;
   const notion = getClient();
   const res = await notion.databases.query({
     database_id: getTripsDbId(),
-    filter: {
-      and: [
-        { property: "Family ID", rich_text: { equals: createdBy } },
-        { property: "Trip ID", rich_text: { equals: tripId } },
-      ],
-    },
+    filter: { property: "Trip ID", rich_text: { equals: tripId } },
     page_size: 1,
   });
   const page = res.results[0];

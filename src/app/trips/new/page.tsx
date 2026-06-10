@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session";
-import { CURRENCIES, type Trip } from "@/lib/types";
+import { CURRENCIES, type Party, type Trip } from "@/lib/types";
 import { detectCurrency } from "@/lib/destinationCurrency";
 import { Card, Button, TextField, Alert, SectionHeader, Badge } from "@/components/ui";
 import { useLanguage } from "@/lib/i18n";
@@ -12,6 +12,8 @@ export default function NewTripPage() {
   const session = useSession();
   const { t } = useLanguage();
   const [tripName, setTripName] = useState("");
+  const [groups, setGroups] = useState<Party[]>([]);
+  const [groupId, setGroupId] = useState("");
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -26,6 +28,22 @@ export default function NewTripPage() {
   useEffect(() => {
     if (!session) router.replace("/login");
   }, [session, router]);
+
+  // The trip must belong to one of the user's groups; preselect when there is
+  // only one to choose from.
+  useEffect(() => {
+    if (!session) return;
+    fetch(`/api/parties?userId=${encodeURIComponent(session.userId)}`)
+      .then((r) => (r.ok ? r.json() : { parties: [] }))
+      .then((b) => {
+        const list = (b.parties as Party[]) || [];
+        setGroups(list);
+        if (list.length === 1) {
+          setGroupId((cur) => cur || list[0].partyId);
+        }
+      })
+      .catch(() => setGroups([]));
+  }, [session]);
 
   useEffect(() => {
     if (session && !currencyTouched) {
@@ -55,11 +73,16 @@ export default function NewTripPage() {
       setError(t("tripsNew.nameRequired"));
       return;
     }
+    if (!groupId) {
+      setError(t("tripsNew.groupRequired"));
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      const payload: Partial<Trip> = {
+      const payload: Partial<Trip> & { groupId: string } = {
         tripName: tripName.trim(),
+        groupId,
         destination: destination.trim() || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
@@ -106,6 +129,59 @@ export default function NewTripPage() {
           <SectionHeader title={t("tripsNew.sectionBasics")} />
           <Card padding={18}>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label
+                  htmlFor="trip-group"
+                  style={{
+                    display: "block",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    color: "var(--color-ink-3)",
+                    marginBottom: 6,
+                  }}
+                >
+                  {t("tripsNew.groupLabel")}
+                </label>
+                <div
+                  style={{
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-line)",
+                    borderRadius: "var(--radius-md)",
+                    padding: "0 12px",
+                  }}
+                >
+                  <select
+                    id="trip-group"
+                    className="fxt-focus"
+                    value={groupId}
+                    onChange={(e) => setGroupId(e.target.value)}
+                    required
+                    style={{
+                      appearance: "none",
+                      width: "100%",
+                      background: "transparent",
+                      border: 0,
+                      padding: "12px 0",
+                      fontSize: 15,
+                      fontFamily: "var(--font-sans)",
+                      color: "var(--color-ink)",
+                      outline: "none",
+                    }}
+                  >
+                    <option value="">{t("tripsNew.groupPlaceholder")}</option>
+                    {groups.map((g) => (
+                      <option key={g.partyId} value={g.partyId}>
+                        {g.partyName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 6 }}>
+                  {t("tripsNew.groupHelper")}
+                </div>
+              </div>
               <TextField
                 label={t("tripsNew.tripNameLabel")}
                 placeholder={t("tripsNew.tripNamePlaceholder")}

@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { createTrip, listTrips } from "@/lib/notionTrips";
+import { getSupabase } from "@/lib/supabase";
 import type { Trip } from "@/lib/types";
 
 export const runtime = "nodejs";
+
+async function listUserGroupIds(userId: string): Promise<string[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("party_members")
+    .select("party_id")
+    .eq("user_id", userId);
+  if (error) throw new Error(`Failed to load group memberships: ${error.message}`);
+  return ((data as Array<{ party_id: string }> | null) || []).map((r) => r.party_id);
+}
 
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
@@ -11,7 +22,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "userId is required" }, { status: 400 });
   }
   try {
-    const trips = await listTrips(userId);
+    const groupIds = await listUserGroupIds(userId);
+    // Include the userId itself so legacy trips (which stored the creator's
+    // userId in Family ID) remain visible to their creator.
+    const trips = await listTrips([...groupIds, userId]);
     return NextResponse.json({ trips });
   } catch (err) {
     console.error("/api/trips GET error", err);
@@ -22,17 +36,34 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as Partial<Trip>;
+    const body = (await req.json()) as Partial<Trip> & { groupId?: string };
     if (!body.tripName || !body.createdBy) {
       return NextResponse.json(
         { error: "tripName and createdBy are required" },
         { status: 400 },
       );
     }
+    if (!body.groupId) {
+      return NextResponse.json({ error: "groupId is required" }, { status: 400 });
+    }
+    const supabase = getSupabase();
+    const { data: member, error: memberErr } = await supabase
+      .from("party_members")
+      .select("party_id")
+      .eq("party_id", body.groupId)
+      .eq("user_id", body.createdBy)
+      .maybeSingle();
+    if (memberErr) {
+      console.error("/api/trips POST membership lookup error", memberErr);
+      return NextResponse.json({ error: "Failed to verify group membership" }, { status: 500 });
+    }
+    if (!member) {
+      return NextResponse.json({ error: "You are not a member of this group" }, { status: 403 });
+    }
     const trip: Trip = {
       tripId: body.tripId || uuidv4(),
       tripName: body.tripName,
-      familyId: body.createdBy,
+      familyId: body.groupId,
       destination: body.destination,
       startDate: body.startDate,
       endDate: body.endDate,

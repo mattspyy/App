@@ -405,10 +405,11 @@ function ConfirmFormBody({
   }, [form?.groupId, session.userId, session.username]);
 
   // If only a trip was supplied, resolve its parent group automatically.
-  // A trip's stored familyId is its parent-group id when that maps to a real
-  // group the user belongs to; otherwise (legacy trips store the creator's
-  // userId there) fall back to the user's Personal group so a valid group is
-  // always pre-selected. The user can still change it via the group picker.
+  // Trips now store their parent group's partyId in familyId, so use it
+  // directly. The Personal-group fallback only applies to legacy trips
+  // (created before the group picker), whose familyId is the creator's
+  // userId and therefore matches none of the user's groups. The user can
+  // still change the group via the picker.
   useEffect(() => {
     if (!form) return;
     if (form.groupId || !form.tripId) return;
