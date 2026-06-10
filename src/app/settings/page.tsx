@@ -19,6 +19,8 @@ export default function SettingsPage() {
   const { t, language, setLanguage } = useLanguage();
   const [baseCurrency, setBaseCurrency] = useState<string>(() => session?.baseCurrency ?? "HKD");
   const [savedTick, setSavedTick] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [langSavedTick, setLangSavedTick] = useState(false);
 
   useEffect(() => {
@@ -32,11 +34,29 @@ export default function SettingsPage() {
 
   if (!session) return <div style={{ color: "var(--color-ink-3)", fontSize: 13 }}>{t("common.loading")}</div>;
 
-  function handleSave() {
+  async function handleSave() {
     if (!session) return;
-    setSession({ ...session, baseCurrency });
-    setSavedTick(true);
-    setTimeout(() => setSavedTick(false), 1400);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      // Persist server-side so the change survives logout and other devices.
+      const res = await fetch("/api/users/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: session.userId, baseCurrency }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error || t("common.unknownError"));
+      }
+      setSession({ ...session, baseCurrency });
+      setSavedTick(true);
+      setTimeout(() => setSavedTick(false), 1400);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : t("common.unknownError"));
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleLogout() {
@@ -175,11 +195,14 @@ export default function SettingsPage() {
               ))}
             </select>
           </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <Button variant="primary" size="md" onClick={handleSave} disabled={!dirty}>
-              {t("common.save")}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Button variant="primary" size="md" onClick={handleSave} disabled={!dirty || saving}>
+              {saving ? t("common.saving") : t("common.save")}
             </Button>
             {savedTick && <Badge tone="sage" size="sm">{t("common.saved")}</Badge>}
+            {saveError && (
+              <span style={{ fontSize: 12, color: "var(--color-accent-ink)" }}>{saveError}</span>
+            )}
           </div>
         </Card>
       </section>

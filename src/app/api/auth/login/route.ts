@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { comparePin, isValidPin, isValidUsername, normalizeUsername } from "@/lib/auth";
+import { clientKey, rateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,15 @@ export async function POST(req: NextRequest) {
   }
 
   const username = normalizeUsername(body.username);
+  // Brute-force protection: limit attempts per IP + username pair.
+  const limit = rateLimit(`login:${clientKey(req)}:${username}`);
+  if (!limit.ok) {
+    const retryAfter = Math.max(1, Math.ceil((limit.resetAt - Date.now()) / 1000));
+    return NextResponse.json(
+      { error: "Too many login attempts. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
+  }
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("users")

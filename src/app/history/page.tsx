@@ -61,7 +61,7 @@ function HistoryInner() {
   const [records, setRecords] = useState<ExpenseRecord[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [partyId, setPartyId] = useState<string>(params.get("partyId") || "");
-  const [, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("");
@@ -78,8 +78,10 @@ function HistoryInner() {
         const list = (b.parties as Party[]) || [];
         setParties(list);
         if (!partyId && list[0]) setPartyId(list[0].partyId);
+        // No groups means no expense fetch will run; stop the loading state.
+        if (list.length === 0) setLoading(false);
       })
-      .catch(() => {});
+      .catch(() => setLoading(false));
   }, [session, router, partyId]);
 
   const loadExpenses = useCallback(async (): Promise<void> => {
@@ -226,7 +228,11 @@ function HistoryInner() {
         )}
       </Card>
 
-      {!hasAnyRecords ? (
+      {loading ? (
+        <div style={{ fontSize: 13, color: "var(--color-ink-3)", padding: "24px 4px" }}>
+          {t("states.loading")}
+        </div>
+      ) : !hasAnyRecords ? (
         <EmptyState
           icon="📋"
           title={t("history.emptyTitle")}

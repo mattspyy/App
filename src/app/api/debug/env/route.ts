@@ -16,6 +16,9 @@ function mask(value: string | undefined): { present: boolean; length?: number; p
 }
 
 export function GET(req: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   if (!isAdmin(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

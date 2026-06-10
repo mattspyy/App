@@ -31,6 +31,8 @@ export const PAYMENT_METHODS = [
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+// TWD and VND are not published by Frankfurter/ECB; conversions for them use
+// the open.er-api.com fallback in exchangeRate.ts (current rates only).
 export const CURRENCIES = [
   "USD", "EUR", "GBP", "JPY", "HKD", "CNY", "TWD", "KRW", "SGD", "AUD", "CAD",
   "THB", "VND", "MYR", "IDR", "PHP", "INR", "NZD", "CHF",

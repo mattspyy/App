@@ -96,6 +96,40 @@ function ScanPageInner() {
     setStaged({ dataUri, sourceType });
   }
 
+  // PWA share target: the service worker stashes a shared image in the
+  // "fxt-share" cache and redirects here with ?shared=1. Read it, clear the
+  // cache entry, and stage it exactly like a manual file selection. Any
+  // failure (no entry, no Cache API) falls through to the normal scan page.
+  useEffect(() => {
+    if (search.get("shared") !== "1") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (typeof caches === "undefined") return;
+        const cache = await caches.open("fxt-share");
+        const res = await cache.match("/__shared-image");
+        if (!res) return;
+        await cache.delete("/__shared-image");
+        const blob = await res.blob();
+        const dataUri = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+          reader.readAsDataURL(blob);
+        });
+        if (cancelled) return;
+        setError(null);
+        writeLastMethod("screenshot");
+        setStaged({ dataUri, sourceType: "screenshot" });
+      } catch {
+        // Shared image unavailable; continue as a normal visit.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [search]);
+
   async function analyze() {
     if (!staged || busy) return;
     setBusy(true);
